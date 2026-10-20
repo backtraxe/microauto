@@ -124,7 +124,13 @@ class MainActivity : AppCompatActivity() {
                 else -> false
             }
         }
-        binding.fabNew.setOnClickListener { newScript() }
+        binding.fabNew.setOnClickListener {
+            if (currentFolderId == null) {
+                showCreateMenu()
+            } else {
+                newScript()
+            }
+        }
         binding.btnEmptyNew.setOnClickListener { newScript() }
         binding.btnEmptyImport.setOnClickListener {
             importLauncher.launch(arrayOf("*/*"))
@@ -231,6 +237,28 @@ class MainActivity : AppCompatActivity() {
         SchedulePrefs.hour(this),
         SchedulePrefs.minute(this)
     )
+
+    private fun showCreateMenu() {
+        val popup = PopupMenu(this, binding.fabNew)
+        popup.menu.add(0, 1, 0, "新建脚本")
+        popup.menu.add(0, 2, 1, "新建文件夹")
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> {
+                    newScript()
+                    true
+                }
+
+                2 -> {
+                    newFolder()
+                    true
+                }
+
+                else -> false
+            }
+        }
+        popup.show()
+    }
 
     private fun newScript() {
         val meta = repository.create("新脚本", ScriptRepository.DEFAULT_SCRIPT, currentFolderId)

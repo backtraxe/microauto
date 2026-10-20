@@ -139,7 +139,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
-        android:contentDescription="新建脚本"
+        android:contentDescription="新建脚本或文件夹"
         app:srcCompat="@drawable/ic_add"
         app:tint="?attr/colorOnPrimaryContainer" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

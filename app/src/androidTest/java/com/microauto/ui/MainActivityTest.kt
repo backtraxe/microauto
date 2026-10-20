@@ -16,6 +16,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.microauto.R
 import com.microauto.TestData
 import com.microauto.script.BuiltinScripts
+import org.hamcrest.Matchers.allOf
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -56,9 +57,21 @@ class MainActivityTest {
     fun fabOpensEditor() {
         ActivityScenario.launch(MainActivity::class.java).use {
             onView(withId(R.id.fabNew)).perform(click())
+            onView(allOf(withText("新建脚本"), isDisplayed())).perform(click())
             Thread.sleep(1500)
             onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
             pressBack()
+        }
+    }
+
+    @Test
+    fun fabCreatesFolder() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.fabNew)).perform(click())
+            onView(allOf(withText("新建文件夹"), isDisplayed())).perform(click())
+            onView(withId(R.id.renameInput)).perform(replaceText("FAB Folder"))
+            onView(withText("确定")).perform(click())
+            onView(withText("FAB Folder")).check(matches(isDisplayed()))
         }
     }
 

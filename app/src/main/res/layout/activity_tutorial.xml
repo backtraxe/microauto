@@ -51,7 +51,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:text="1. 打开系统设置 → 无障碍 → 已下载的服务 → MicroAuto，开启服务。\n2. 回到首页，点右下角 + 新建脚本，或直接打开内置示例。\n3. 在编辑器里点“运行”。首次运行会请求通知权限，用于前台服务通知。"
+                    android:text="1. 打开系统设置 → 无障碍 → 已下载的服务 → MicroAuto，开启服务。\n2. 回到首页，点右下角 +，选择新建脚本或新建文件夹，或直接打开内置示例。\n3. 在编辑器里点“运行”。首次运行会请求通知权限，用于前台服务通知。"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
