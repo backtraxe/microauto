@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -59,6 +60,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         pendingExportId = savedInstanceState?.getString(KEY_PENDING_EXPORT)
         currentFolderId = savedInstanceState?.getString(KEY_FOLDER)
+        val savedTab = savedInstanceState?.getInt(KEY_TAB, R.id.nav_scripts)
+            ?: R.id.nav_scripts
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         EdgeToEdge.apply(this, binding.root)
@@ -81,12 +84,22 @@ class MainActivity : AppCompatActivity() {
             currentFolderId = null
         }
         setupUi()
+        binding.bottomNav.selectedItemId = savedTab
+        if (savedTab == R.id.nav_tutorial) {
+            showTutorialTab()
+        } else {
+            showScriptsTab()
+        }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (currentFolderId != null) {
-                    goUp()
-                } else {
-                    finish()
+                when {
+                    binding.bottomNav.selectedItemId == R.id.nav_tutorial -> {
+                        binding.bottomNav.selectedItemId = R.id.nav_scripts
+                    }
+
+                    currentFolderId != null -> goUp()
+
+                    else -> finish()
                 }
             }
         })
@@ -98,14 +111,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupUi() {
-        binding.toolbar.inflateMenu(R.menu.menu_main)
         binding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.action_tutorial -> {
-                    startActivity(Intent(this, TutorialActivity::class.java))
-                    true
-                }
-
                 R.id.action_new_folder -> {
                     newFolder()
                     true
@@ -124,6 +131,23 @@ class MainActivity : AppCompatActivity() {
                 else -> false
             }
         }
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_scripts -> {
+                    showScriptsTab()
+                    true
+                }
+
+                R.id.nav_tutorial -> {
+                    showTutorialTab()
+                    true
+                }
+
+                else -> false
+            }
+        }
+        binding.searchInput.doAfterTextChanged { refresh() }
+        binding.tutorialContent.btnRestoreBuiltins.setOnClickListener { restoreBuiltins() }
         binding.fabNew.setOnClickListener {
             if (currentFolderId == null) {
                 showCreateMenu()
@@ -142,13 +166,41 @@ class MainActivity : AppCompatActivity() {
         binding.chipSchedule.setOnClickListener { openScheduledScript() }
     }
 
+    private fun showScriptsTab() {
+        binding.scriptsPage.isVisible = true
+        binding.tutorialPage.isVisible = false
+        binding.toolbar.menu.clear()
+        binding.toolbar.inflateMenu(R.menu.menu_main)
+        updateToolbar()
+        refresh()
+    }
+
+    private fun showTutorialTab() {
+        binding.scriptsPage.isVisible = false
+        binding.tutorialPage.isVisible = true
+        binding.toolbar.menu.clear()
+        binding.toolbar.title = "使用教程"
+        binding.toolbar.navigationIcon = null
+        binding.toolbar.setNavigationOnClickListener(null)
+    }
+
     private fun refresh() {
+        val query = binding.searchInput.text?.toString()?.trim().orEmpty()
+        val searching = query.isNotEmpty()
         val folderId = currentFolderId
-        if (folderId != null && repository.folder(folderId) == null) {
+        if (!searching && folderId != null && repository.folder(folderId) == null) {
             currentFolderId = null
         }
-        val folders = if (currentFolderId == null) repository.folders() else emptyList()
-        val scripts = repository.list(currentFolderId)
+        val folders = if (!searching && currentFolderId == null) {
+            repository.folders()
+        } else {
+            emptyList()
+        }
+        val scripts = if (searching) {
+            repository.listAll().filter { it.name.contains(query, ignoreCase = true) }
+        } else {
+            repository.list(currentFolderId)
+        }
         val items = buildList<LibraryItem> {
             folders.forEach { add(LibraryItem.Folder(it, repository.count(it.id))) }
             scripts.forEach { add(LibraryItem.Script(it)) }
@@ -157,25 +209,31 @@ class MainActivity : AppCompatActivity() {
         val empty = items.isEmpty()
         binding.emptyState.isVisible = empty
         binding.scriptList.isVisible = !empty
-        binding.emptyTitle.text = if (currentFolderId == null) {
-            "还没有脚本"
-        } else {
-            "这个文件夹是空的"
+        binding.emptyTitle.text = when {
+            searching -> "没有找到匹配的脚本"
+            currentFolderId != null -> "这个文件夹是空的"
+            else -> "还没有脚本"
         }
-        binding.emptyHint.text = if (currentFolderId == null) {
-            "新建一个脚本，或从文件导入 .js / .txt"
-        } else {
-            "新建一个脚本，或从文件导入到当前文件夹"
+        binding.emptyHint.text = when {
+            searching -> "换个关键词试试"
+            currentFolderId != null -> "新建一个脚本，或从文件导入到当前文件夹"
+            else -> "新建一个脚本，或从文件导入 .js / .txt"
         }
-        binding.btnEmptyFolder.isVisible = currentFolderId == null
+        binding.btnEmptyFolder.isVisible = !searching && currentFolderId == null
         updateToolbar()
         updateStatus()
     }
 
     private fun updateToolbar() {
+        if (binding.bottomNav.selectedItemId == R.id.nav_tutorial) return
+        val query = binding.searchInput.text?.toString()?.trim().orEmpty()
         val folder = currentFolderId?.let { repository.folder(it) }
-        binding.toolbar.title = folder?.name ?: "脚本"
-        if (folder != null) {
+        binding.toolbar.title = when {
+            query.isNotEmpty() -> "搜索结果"
+            folder != null -> folder.name
+            else -> "脚本"
+        }
+        if (folder != null && query.isEmpty()) {
             binding.toolbar.setNavigationIcon(R.drawable.ic_arrow_back)
             binding.toolbar.setNavigationContentDescription("返回")
             binding.toolbar.setNavigationOnClickListener { goUp() }
@@ -184,7 +242,8 @@ class MainActivity : AppCompatActivity() {
             binding.toolbar.setNavigationContentDescription(null as CharSequence?)
             binding.toolbar.setNavigationOnClickListener(null)
         }
-        binding.toolbar.menu.findItem(R.id.action_new_folder)?.isVisible = folder == null
+        binding.toolbar.menu.findItem(R.id.action_new_folder)?.isVisible =
+            folder == null && query.isEmpty()
     }
 
     private fun updateStatus() {
@@ -221,7 +280,12 @@ class MainActivity : AppCompatActivity() {
     private fun subtitle(meta: ScriptMeta): String {
         val updated = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
             .format(Date(meta.updatedAt))
-        return "修改于 $updated"
+        val folder = meta.folderId?.let { repository.folderName(it) }
+        return if (folder != null) {
+            "在 $folder · 修改于 $updated"
+        } else {
+            "修改于 $updated"
+        }
     }
 
     private fun scheduleText(meta: ScriptMeta): String? {
@@ -544,11 +608,13 @@ class MainActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
         outState.putString(KEY_PENDING_EXPORT, pendingExportId)
         outState.putString(KEY_FOLDER, currentFolderId)
+        outState.putInt(KEY_TAB, binding.bottomNav.selectedItemId)
     }
 
     private companion object {
         const val MAX_IMPORT_CHARS = 1_000_000
         const val KEY_PENDING_EXPORT = "pending_export_id"
         const val KEY_FOLDER = "current_folder_id"
+        const val KEY_TAB = "current_tab"
     }
 }

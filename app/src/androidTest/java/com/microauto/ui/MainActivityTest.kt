@@ -9,6 +9,7 @@ import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.replaceText
 import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
@@ -34,7 +35,8 @@ class MainActivityTest {
     fun showsToolbarChipsAndFab() {
         ActivityScenario.launch(MainActivity::class.java).use {
             onView(withId(R.id.toolbar)).check(matches(isDisplayed()))
-            onView(withText("脚本")).check(matches(isDisplayed()))
+            onView(allOf(withText("脚本"), isDescendantOfA(withId(R.id.toolbar))))
+                .check(matches(isDisplayed()))
             onView(withId(R.id.chipAccessibility)).check(matches(isDisplayed()))
             onView(withId(R.id.chipAlarm)).check(matches(isDisplayed()))
             onView(withId(R.id.chipBattery)).check(matches(isDisplayed()))
@@ -76,11 +78,21 @@ class MainActivityTest {
     }
 
     @Test
-    fun tutorialOpens() {
+    fun tutorialTabOpens() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
-            onView(withText("使用教程")).perform(click())
+            onView(allOf(withText("教程"), isDisplayed())).perform(click())
             onView(withText("快速开始")).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun searchFiltersScripts() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.searchInput)).perform(replaceText("节点"))
+            onView(withId(R.id.scriptList)).check { view, _ ->
+                val recycler = view as RecyclerView
+                assertEquals(1, recycler.adapter?.itemCount)
+            }
         }
     }
 

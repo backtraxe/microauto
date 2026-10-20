@@ -2,11 +2,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/action_tutorial"
-        android:title="使用教程"
-        app:showAsAction="never" />
-
-    <item
         android:id="@+id/action_new_folder"
         android:title="新建文件夹"
         app:showAsAction="never" />
