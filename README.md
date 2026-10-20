@@ -1,5 +1,7 @@
 # MicroAuto
 
+[![Android CI](https://github.com/backtraxe/microauto/actions/workflows/android.yml/badge.svg)](https://github.com/backtraxe/microauto/actions/workflows/android.yml)
+
 一个非 root、纯本机运行的 Android 界面自动化工具。用 JavaScript 写脚本，通过无障碍服务查找控件、点击、滑动和启动应用，适合自动签到这类固定流程。
 
 ## 已实现的最小功能
@@ -23,6 +25,22 @@
 ```
 
 APK 输出：`app/build/outputs/apk/debug/app-debug.apk`。
+
+## CI/CD
+
+GitHub Actions 配置在 `.github/workflows/android.yml`：
+
+- push 到 `main` 或提 PR：自动运行单元测试、Android Lint、构建 debug APK，APK 作为 Actions artifact 上传。
+- push `v*` 标签：构建通过后自动创建 GitHub Release，并附带 `app-debug.apk`。
+
+发布一个版本：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+当前 Release 附件是 debug 签名 APK，可直接安装；如果需要正式签名，需要在仓库 Secrets 中配置 keystore 并补充 signingConfig。
 
 ## 使用
 
