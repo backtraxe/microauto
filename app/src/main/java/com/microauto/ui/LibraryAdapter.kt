@@ -3,7 +3,6 @@ package com.microauto.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import com.microauto.databinding.ItemFolderBinding
 import com.microauto.databinding.ItemScriptBinding
@@ -68,10 +67,12 @@ class LibraryAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
         fun bind(meta: ScriptMeta) {
             binding.nameText.text = meta.name
-            binding.metaText.text = subtitle(meta)
             val scheduleText = schedule(meta)
-            binding.scheduleChip.isVisible = scheduleText != null
-            binding.scheduleChip.text = scheduleText.orEmpty()
+            binding.metaText.text = if (scheduleText != null) {
+                "$scheduleText · ${subtitle(meta)}"
+            } else {
+                subtitle(meta)
+            }
             binding.root.setOnClickListener { onScriptClick(meta) }
             binding.moreButton.setOnClickListener { onScriptMenu(meta, it) }
         }
