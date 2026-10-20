@@ -9,12 +9,12 @@
         android:strokeColor="#FFFFFFFF"
         android:strokeWidth="3.50"
         android:strokeLineJoin="round"
-        android:pathData="M43.03,32.06 H64.97 A10.97,10.97 0 0 1 75.94,43.03 V64.97 A10.97,10.97 0 0 1 64.97,75.94 H43.03 A10.97,10.97 0 0 1 32.06,64.97 V43.03 A10.97,10.97 0 0 1 43.03,32.06 Z" />
+        android:pathData="M42.40,28.27 H65.60 A11.60,11.60 0 0 1 77.20,39.87 V63.08 A11.60,11.60 0 0 1 65.60,74.68 H42.40 A11.60,11.60 0 0 1 30.80,63.08 V39.87 A11.60,11.60 0 0 1 42.40,28.27 Z" />
     <path
         android:fillColor="#00000000"
         android:strokeColor="#FFFFFFFF"
         android:strokeWidth="5.06"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M44.51,61.17 V50.20 A4.75,4.75 0 0 1 54,50.20 V61.17 V50.20 A4.75,4.75 0 0 1 63.49,50.20 V61.17" />
+        android:pathData="M44.51,58.01 V47.04 A4.75,4.75 0 0 1 54,47.04 V58.01 V47.04 A4.75,4.75 0 0 1 63.49,47.04 V58.01" />
 </vector>
