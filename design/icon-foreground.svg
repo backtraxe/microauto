@@ -1,9 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect x="227" y="315" width="22" height="85" rx="6" fill="#FFFFFF"/>
-  <rect x="274" y="273.5" width="22" height="126.5" rx="6" fill="#FFFFFF"/>
-  <rect x="320" y="231" width="22" height="169" rx="6" fill="#FFFFFF"/>
+  <defs>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EEF2FF"/>
+    </linearGradient>
+    <mask id="mcut">
+      <rect width="512" height="512" fill="#FFFFFF"/>
+      <path d="M211 290 V238 A22.5 22.5 0 0 1 256 238 V290 V238 A22.5 22.5 0 0 1 301 238 V290"
+            fill="none" stroke="#000000" stroke-width="24"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+  </defs>
 
-  <path d="M170 320 C255 320 300 215 370 190"
-        fill="none" stroke="#FFFFFF" stroke-width="44"
-        stroke-linecap="round"/>
+  <rect x="152" y="184" width="208" height="208" rx="52" fill="#FFFFFF" opacity="0.30" mask="url(#mcut)"/>
+  <path d="M204,152 H308 A52,52 0 0 1 360,204 V308 A52,52 0 0 1 308,360 H204 A52,52 0 0 1 152,308 V204 A52,52 0 0 1 204,152 Z"
+        fill="url(#face)" mask="url(#mcut)"/>
 </svg>
