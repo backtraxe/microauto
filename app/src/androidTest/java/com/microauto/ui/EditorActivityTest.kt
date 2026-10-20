@@ -54,7 +54,7 @@ class EditorActivityTest {
     fun saveMenuPersistsContent() {
         launch().use {
             onView(withId(R.id.scriptEditor)).perform(replaceText("toast('saved');"))
-            onView(withText("保存")).perform(click())
+            onView(withId(R.id.action_save)).perform(click())
             Thread.sleep(300)
             assertEquals("toast('saved');", ScriptRepository(context).read(scriptId))
         }
