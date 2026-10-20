@@ -18,6 +18,7 @@ import com.microauto.R
 import com.microauto.TestData
 import com.microauto.script.BuiltinScripts
 import org.hamcrest.Matchers.allOf
+import org.hamcrest.Matchers.containsString
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -32,16 +33,14 @@ class MainActivityTest {
     }
 
     @Test
-    fun showsToolbarChipsAndNav() {
+    fun showsToolbarAndNav() {
         ActivityScenario.launch(MainActivity::class.java).use {
             onView(withId(R.id.toolbar)).check(matches(isDisplayed()))
             onView(allOf(withText("脚本"), isDescendantOfA(withId(R.id.toolbar))))
                 .check(matches(isDisplayed()))
-            onView(withId(R.id.chipAccessibility)).check(matches(isDisplayed()))
-            onView(withId(R.id.chipAlarm)).check(matches(isDisplayed()))
-            onView(withId(R.id.chipBattery)).check(matches(isDisplayed()))
-            onView(withId(R.id.chipSchedule)).check(matches(isDisplayed()))
             onView(withId(R.id.bottomNav)).check(matches(isDisplayed()))
+            openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
+            onView(withText(containsString("无障碍"))).check(matches(isDisplayed()))
         }
     }
 

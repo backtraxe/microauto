@@ -41,10 +41,10 @@
                     android:layout_marginEnd="16dp"
                     android:hint="搜索脚本"
                     app:boxBackgroundColor="?attr/colorSurfaceContainerHigh"
-                    app:boxCornerRadiusBottomEnd="24dp"
-                    app:boxCornerRadiusBottomStart="24dp"
-                    app:boxCornerRadiusTopEnd="24dp"
-                    app:boxCornerRadiusTopStart="24dp"
+                    app:boxCornerRadiusBottomEnd="16dp"
+                    app:boxCornerRadiusBottomStart="16dp"
+                    app:boxCornerRadiusTopEnd="16dp"
+                    app:boxCornerRadiusTopStart="16dp"
                     app:boxStrokeWidth="0dp"
                     app:boxStrokeWidthFocused="0dp"
                     app:endIconMode="clear_text"
@@ -60,54 +60,6 @@
                         android:maxLines="1" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/statusChips"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="16dp"
-                    android:paddingTop="4dp"
-                    android:paddingEnd="16dp"
-                    android:paddingBottom="8dp"
-                    app:chipSpacingHorizontal="8dp"
-                    app:chipSpacingVertical="4dp">
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipAccessibility"
-                        style="@style/Widget.MicroAuto.Chip.Status"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checkable="false"
-                        android:clickable="true"
-                        android:text="无障碍" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipAlarm"
-                        style="@style/Widget.MicroAuto.Chip.Status"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checkable="false"
-                        android:clickable="true"
-                        android:text="精确闹钟" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipBattery"
-                        style="@style/Widget.MicroAuto.Chip.Status"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checkable="false"
-                        android:clickable="true"
-                        android:text="省电" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipSchedule"
-                        style="@style/Widget.MicroAuto.Chip.Status"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checkable="false"
-                        android:clickable="true"
-                        android:text="定时" />
-                </com.google.android.material.chip.ChipGroup>
-
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
@@ -121,7 +73,7 @@
                         android:paddingStart="8dp"
                         android:paddingTop="4dp"
                         android:paddingEnd="8dp"
-                        android:paddingBottom="16dp"
+                        android:paddingBottom="104dp"
                         android:scrollbars="vertical" />
 
                     <LinearLayout
@@ -130,7 +82,10 @@
                         android:layout_height="match_parent"
                         android:gravity="center"
                         android:orientation="vertical"
-                        android:padding="32dp"
+                        android:paddingStart="32dp"
+                        android:paddingTop="32dp"
+                        android:paddingEnd="32dp"
+                        android:paddingBottom="120dp"
                         android:visibility="gone">
 
                         <TextView
@@ -186,12 +141,28 @@
                     layout="@layout/view_tutorial" />
             </androidx.core.widget.NestedScrollView>
         </FrameLayout>
+    </LinearLayout>
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/navCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="12dp"
+        app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
+        app:cardCornerRadius="28dp"
+        app:cardElevation="8dp"
+        app:strokeWidth="0dp">
 
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottomNav"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            app:elevation="0dp"
             app:labelVisibilityMode="labeled"
             app:menu="@menu/menu_bottom" />
-    </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -2,6 +2,26 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_accessibility"
+        android:title="无障碍"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_alarm"
+        android:title="精确闹钟"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_battery"
+        android:title="省电"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_schedule"
+        android:title="定时"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_new_folder"
         android:title="新建文件夹"
         app:showAsAction="never" />

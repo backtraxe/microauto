@@ -116,6 +116,26 @@ class MainActivity : AppCompatActivity() {
     private fun setupUi() {
         binding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                R.id.action_accessibility -> {
+                    openAccessibilitySettings()
+                    true
+                }
+
+                R.id.action_alarm -> {
+                    openExactAlarmSettings()
+                    true
+                }
+
+                R.id.action_battery -> {
+                    openBatterySettings()
+                    true
+                }
+
+                R.id.action_schedule -> {
+                    openScheduledScript()
+                    true
+                }
+
                 R.id.action_new_folder -> {
                     newFolder()
                     true
@@ -171,10 +191,6 @@ class MainActivity : AppCompatActivity() {
             importLauncher.launch(arrayOf("*/*"))
         }
         binding.btnEmptyFolder.setOnClickListener { newFolder() }
-        binding.chipAccessibility.setOnClickListener { openAccessibilitySettings() }
-        binding.chipAlarm.setOnClickListener { openExactAlarmSettings() }
-        binding.chipBattery.setOnClickListener { openBatterySettings() }
-        binding.chipSchedule.setOnClickListener { openScheduledScript() }
     }
 
     private fun showScriptsTab() {
@@ -258,12 +274,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateStatus() {
-        binding.chipAccessibility.text = if (AccessibilityUtils.isEnabled(this)) {
+        val menu = binding.toolbar.menu
+        menu.findItem(R.id.action_accessibility)?.title = if (AccessibilityUtils.isEnabled(this)) {
             "无障碍：已开启"
         } else {
             "无障碍：未开启"
         }
-        binding.chipAlarm.text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        menu.findItem(R.id.action_alarm)?.title = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val manager = getSystemService(AlarmManager::class.java)
             if (manager != null && manager.canScheduleExactAlarms()) {
                 "精确闹钟：可用"
@@ -275,17 +292,18 @@ class MainActivity : AppCompatActivity() {
         }
         val powerManager = getSystemService(PowerManager::class.java)
         val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(packageName) == true
-        binding.chipBattery.text = if (ignoringBattery) {
+        menu.findItem(R.id.action_battery)?.title = if (ignoringBattery) {
             "省电：已允许"
         } else {
             "省电：未允许"
         }
         val scheduled = SchedulePrefs.scriptId(this)?.let { repository.find(it) }
-        binding.chipSchedule.text = if (SchedulePrefs.isEnabled(this) && scheduled != null) {
-            "定时 ${timeText()} · ${scheduled.name}"
-        } else {
-            "定时：未启用"
-        }
+        menu.findItem(R.id.action_schedule)?.title =
+            if (SchedulePrefs.isEnabled(this) && scheduled != null) {
+                "定时 ${timeText()} · ${scheduled.name}"
+            } else {
+                "定时：未启用"
+            }
     }
 
     private fun subtitle(meta: ScriptMeta): String {
