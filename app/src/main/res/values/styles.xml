@@ -1,0 +1,17 @@
+<resources>
+    <style name="Widget.MicroAuto.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeWidth">0dp</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainer</item>
+    </style>
+
+    <style name="Widget.MicroAuto.Card.High">
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerHigh</item>
+    </style>
+
+    <style name="Widget.MicroAuto.Chip.Status" parent="Widget.Material3.Chip.Assist">
+        <item name="android:textSize">12sp</item>
+        <item name="chipMinHeight">32dp</item>
+    </style>
+</resources>

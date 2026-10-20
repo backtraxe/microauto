@@ -8,19 +8,19 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.View
-import android.widget.EditText
-import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.microauto.R
 import com.microauto.accessibility.AccessibilityUtils
 import com.microauto.core.ScriptNaming
 import com.microauto.databinding.ActivityMainBinding
+import com.microauto.databinding.DialogRenameBinding
 import com.microauto.schedule.SchedulePrefs
 import com.microauto.schedule.ScriptScheduler
 import com.microauto.script.ScriptMeta
@@ -242,16 +242,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showRenameDialog(meta: ScriptMeta) {
-        val input = EditText(this).apply {
-            setText(meta.name)
-            setSelection(text.length)
-            setPadding(48, 24, 48, 0)
-        }
-        AlertDialog.Builder(this)
+        val dialogBinding = DialogRenameBinding.inflate(layoutInflater)
+        dialogBinding.renameInput.setText(meta.name)
+        dialogBinding.renameInput.setSelection(meta.name.length)
+        MaterialAlertDialogBuilder(this)
             .setTitle("重命名")
-            .setView(input)
+            .setView(dialogBinding.root)
             .setPositiveButton("确定") { _, _ ->
-                if (repository.rename(meta.id, input.text.toString())) {
+                if (repository.rename(meta.id, dialogBinding.renameInput.text.toString())) {
                     refresh()
                     toast("已重命名")
                 } else {
@@ -263,7 +261,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun confirmDelete(meta: ScriptMeta) {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("删除脚本")
             .setMessage("确定删除「${meta.name}」？")
             .setPositiveButton("删除") { _, _ ->

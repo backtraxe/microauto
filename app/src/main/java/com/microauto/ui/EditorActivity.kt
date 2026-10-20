@@ -10,13 +10,13 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.microauto.R
 import com.microauto.accessibility.AccessibilityUtils
 import com.microauto.core.ScheduleTime
@@ -149,7 +149,7 @@ class EditorActivity : AppCompatActivity() {
             finish()
             return
         }
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("未保存的修改")
             .setMessage("是否保存当前脚本？")
             .setPositiveButton("保存并退出") { _, _ ->
