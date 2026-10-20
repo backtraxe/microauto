@@ -32,7 +32,7 @@ class MainActivityTest {
     }
 
     @Test
-    fun showsToolbarChipsAndFab() {
+    fun showsToolbarChipsAndNav() {
         ActivityScenario.launch(MainActivity::class.java).use {
             onView(withId(R.id.toolbar)).check(matches(isDisplayed()))
             onView(allOf(withText("脚本"), isDescendantOfA(withId(R.id.toolbar))))
@@ -41,7 +41,7 @@ class MainActivityTest {
             onView(withId(R.id.chipAlarm)).check(matches(isDisplayed()))
             onView(withId(R.id.chipBattery)).check(matches(isDisplayed()))
             onView(withId(R.id.chipSchedule)).check(matches(isDisplayed()))
-            onView(withId(R.id.fabNew)).check(matches(isDisplayed()))
+            onView(withId(R.id.bottomNav)).check(matches(isDisplayed()))
         }
     }
 
@@ -56,9 +56,9 @@ class MainActivityTest {
     }
 
     @Test
-    fun fabOpensEditor() {
+    fun centerActionOpensEditor() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.fabNew)).perform(click())
+            onView(allOf(withText("新建"), isDisplayed())).perform(click())
             onView(allOf(withText("新建脚本"), isDisplayed())).perform(click())
             Thread.sleep(1500)
             onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
@@ -67,13 +67,13 @@ class MainActivityTest {
     }
 
     @Test
-    fun fabCreatesFolder() {
+    fun centerActionCreatesFolder() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            onView(withId(R.id.fabNew)).perform(click())
+            onView(allOf(withText("新建"), isDisplayed())).perform(click())
             onView(allOf(withText("新建文件夹"), isDisplayed())).perform(click())
-            onView(withId(R.id.renameInput)).perform(replaceText("FAB Folder"))
+            onView(withId(R.id.renameInput)).perform(replaceText("Nav Folder"))
             onView(withText("确定")).perform(click())
-            onView(withText("FAB Folder")).check(matches(isDisplayed()))
+            onView(withText("Nav Folder")).check(matches(isDisplayed()))
         }
     }
 

@@ -114,7 +114,7 @@
                         android:paddingStart="8dp"
                         android:paddingTop="4dp"
                         android:paddingEnd="8dp"
-                        android:paddingBottom="96dp"
+                        android:paddingBottom="16dp"
                         android:scrollbars="vertical" />
 
                     <LinearLayout
@@ -164,16 +164,6 @@
                             android:layout_height="wrap_content"
                             android:text="新建文件夹" />
                     </LinearLayout>
-
-                    <com.google.android.material.floatingactionbutton.FloatingActionButton
-                        android:id="@+id/fabNew"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="bottom|end"
-                        android:layout_margin="16dp"
-                        android:contentDescription="新建脚本或文件夹"
-                        app:srcCompat="@drawable/ic_add"
-                        app:tint="?attr/colorOnPrimaryContainer" />
                 </FrameLayout>
             </LinearLayout>
 

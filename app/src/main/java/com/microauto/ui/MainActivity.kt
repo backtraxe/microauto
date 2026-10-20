@@ -61,6 +61,7 @@ class MainActivity : AppCompatActivity() {
         pendingExportId = savedInstanceState?.getString(KEY_PENDING_EXPORT)
         currentFolderId = savedInstanceState?.getString(KEY_FOLDER)
         val savedTab = savedInstanceState?.getInt(KEY_TAB, R.id.nav_scripts)
+            ?.takeIf { it != R.id.nav_create }
             ?: R.id.nav_scripts
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -138,6 +139,13 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
 
+                R.id.nav_create -> {
+                    val anchor = binding.bottomNav.findViewById<View>(R.id.nav_create)
+                        ?: binding.bottomNav
+                    showCreateMenu(anchor)
+                    false
+                }
+
                 R.id.nav_tutorial -> {
                     showTutorialTab()
                     true
@@ -148,13 +156,6 @@ class MainActivity : AppCompatActivity() {
         }
         binding.searchInput.doAfterTextChanged { refresh() }
         binding.tutorialContent.btnRestoreBuiltins.setOnClickListener { restoreBuiltins() }
-        binding.fabNew.setOnClickListener {
-            if (currentFolderId == null) {
-                showCreateMenu()
-            } else {
-                newScript()
-            }
-        }
         binding.btnEmptyNew.setOnClickListener { newScript() }
         binding.btnEmptyImport.setOnClickListener {
             importLauncher.launch(arrayOf("*/*"))
@@ -302,18 +303,22 @@ class MainActivity : AppCompatActivity() {
         SchedulePrefs.minute(this)
     )
 
-    private fun showCreateMenu() {
-        val popup = PopupMenu(this, binding.fabNew)
+    private fun showCreateMenu(anchor: View) {
+        val popup = PopupMenu(this, anchor)
         popup.menu.add(0, 1, 0, "新建脚本")
-        popup.menu.add(0, 2, 1, "新建文件夹")
+        if (currentFolderId == null) {
+            popup.menu.add(0, 2, 1, "新建文件夹")
+        }
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> {
+                    ensureScriptsTab()
                     newScript()
                     true
                 }
 
                 2 -> {
+                    ensureScriptsTab()
                     newFolder()
                     true
                 }
@@ -322,6 +327,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
         popup.show()
+    }
+
+    private fun ensureScriptsTab() {
+        if (binding.bottomNav.selectedItemId != R.id.nav_scripts) {
+            binding.bottomNav.selectedItemId = R.id.nav_scripts
+        }
     }
 
     private fun newScript() {
