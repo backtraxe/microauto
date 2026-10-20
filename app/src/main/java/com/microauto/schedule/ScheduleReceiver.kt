@@ -3,32 +3,103 @@ package com.microauto.schedule
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.microauto.accessibility.ScreenState
+import com.microauto.core.ScheduleTriggerPolicy
+import com.microauto.core.TriggerDecision
 import com.microauto.script.RunLog
+import com.microauto.script.RunNotifications
 import com.microauto.script.ScriptRepository
 import com.microauto.script.ScriptService
+import java.time.LocalTime
 
 class ScheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (!SchedulePrefs.isEnabled(context)) return
-        val scriptId = SchedulePrefs.scriptId(context)
-        if (scriptId == null) {
-            RunLog.append("[错误] 定时任务没有绑定脚本")
-            SchedulePrefs.setEnabled(context, false)
+        val isRetry = intent?.action == ScriptScheduler.ACTION_RETRY
+        val scriptId = intent?.getStringExtra(ScriptScheduler.EXTRA_SCRIPT_ID)
+            ?: singleScheduledScriptId(context)
+            ?: return
+
+        val schedule = SchedulePrefs.scheduleFor(context, scriptId)
+        if (schedule == null || !schedule.enabled) {
+            if (schedule != null) ScriptScheduler.cancelScript(context, schedule)
+            SchedulePrefs.clearPending(context, scriptId)
             return
         }
-        val script = ScriptRepository(context).read(scriptId)
+
+        val repository = ScriptRepository(context)
+        val script = repository.read(scriptId)
         if (script == null) {
-            RunLog.append("[错误] 定时脚本不存在，已关闭定时")
-            SchedulePrefs.setEnabled(context, false)
-            SchedulePrefs.setScriptId(context, null)
-            ScriptScheduler.cancel(context)
+            RunLog.append("[错误] 定时脚本不存在，已移除定时")
+            ScriptScheduler.cancelScript(context, schedule)
+            SchedulePrefs.remove(context, scriptId)
+            RunNotifications.notifyFailure(context, "定时脚本", "脚本不存在，已移除定时")
             return
         }
-        runCatching {
-            ScriptService.start(context, script)
-        }.onFailure {
-            RunLog.append("[错误] 定时任务启动失败: ${it.message}")
+
+        val scriptName = repository.find(scriptId)?.name ?: "定时脚本"
+        val now = System.currentTimeMillis()
+        val storedDeadline = SchedulePrefs.pendingDeadline(context, scriptId)
+        val deadline = if (isRetry && storedDeadline <= 0) {
+            now + ScheduleTriggerPolicy.RETRY_WINDOW_MILLIS
+        } else {
+            storedDeadline
         }
-        ScriptScheduler.scheduleNext(context)
+        val decision = ScheduleTriggerPolicy.decide(
+            now = now,
+            isRetry = isRetry,
+            deadline = deadline,
+            screenInteractive = ScreenState.isInteractive(context),
+            screenLocked = ScreenState.isLocked(context)
+        )
+
+        when (decision) {
+            TriggerDecision.Run -> {
+                SchedulePrefs.clearPending(context, scriptId)
+                ScriptScheduler.cancelRetry(context, schedule)
+                runCatching {
+                    ScriptService.start(context, scriptId, scriptName, script)
+                }.onFailure {
+                    RunLog.append("[错误] 定时任务启动失败: ${it.message}")
+                    RunNotifications.notifyFailure(
+                        context,
+                        scriptName,
+                        "无法启动运行服务：${it.message}"
+                    )
+                }
+            }
+
+            is TriggerDecision.Retry -> {
+                SchedulePrefs.setPending(context, scriptId, decision.deadline)
+                if (!ScriptScheduler.scheduleRetry(context, schedule, decision.nextAt)) {
+                    SchedulePrefs.clearPending(context, scriptId)
+                    RunLog.append("[错误] 无法安排定时重试")
+                    RunNotifications.notifyFailure(context, scriptName, "无法安排屏幕解锁后的重试")
+                } else {
+                    RunLog.append("[等待] 屏幕未解锁，稍后重试")
+                }
+            }
+
+            is TriggerDecision.Skip -> {
+                SchedulePrefs.clearPending(context, scriptId)
+                ScriptScheduler.cancelRetry(context, schedule)
+                RunLog.append("[跳过] 定时任务：${decision.reason}")
+                RunNotifications.notifySkipped(context, scriptName, decision.reason)
+            }
+        }
+
+        val current = SchedulePrefs.scheduleFor(context, scriptId)
+        if (current?.enabled == true) {
+            ScriptScheduler.scheduleScript(context, current)
+        }
+    }
+
+    private fun singleScheduledScriptId(context: Context): String? {
+        val enabled = SchedulePrefs.enabled(context)
+        enabled.singleOrNull()?.let { return it.scriptId }
+        val now = LocalTime.now()
+        return enabled
+            .filter { it.hour == now.hour && it.minute == now.minute }
+            .singleOrNull()
+            ?.scriptId
     }
 }

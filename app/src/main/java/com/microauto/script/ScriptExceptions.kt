@@ -7,3 +7,7 @@ class ScriptExitException : RuntimeException() {
 class ScriptTimeoutException : RuntimeException("脚本执行超过 10 分钟") {
     override fun fillInStackTrace(): Throwable = this
 }
+
+class ScriptCancelledException : RuntimeException() {
+    override fun fillInStackTrace(): Throwable = this
+}

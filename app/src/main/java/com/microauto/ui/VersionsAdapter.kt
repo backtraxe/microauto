@@ -3,11 +3,11 @@ package com.microauto.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import com.microauto.core.DateFormats
 import com.microauto.databinding.ItemVersionBinding
 import com.microauto.script.ScriptVersion
-import java.text.DateFormat
-import java.util.Date
 
 class VersionsAdapter(
     private val onMenu: (ScriptVersion, View) -> Unit
@@ -16,9 +16,12 @@ class VersionsAdapter(
     private var items: List<ScriptVersion> = emptyList()
 
     fun submit(list: List<ScriptVersion>) {
+        val diff = DiffUtil.calculateDiff(DiffCallback(items, list))
         items = list
-        notifyDataSetChanged()
+        diff.dispatchUpdatesTo(this)
     }
+
+    override fun getItemCount(): Int = items.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder =
         Holder(ItemVersionBinding.inflate(LayoutInflater.from(parent.context), parent, false))
@@ -27,18 +30,32 @@ class VersionsAdapter(
         holder.bind(items[position])
     }
 
-    override fun getItemCount(): Int = items.size
-
     inner class Holder(
         private val binding: ItemVersionBinding
     ) : RecyclerView.ViewHolder(binding.root) {
         fun bind(version: ScriptVersion) {
-            binding.versionLabel.text = "v${version.version}"
+            binding.versionLabel.text = binding.root.context.getString(
+                com.microauto.R.string.version_label,
+                version.version
+            )
             binding.versionNote.text = version.note.ifBlank { "无备注" }
-            binding.versionTime.text = DateFormat
-                .getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-                .format(Date(version.createdAt))
+            binding.versionTime.text = DateFormats.format(version.createdAt)
             binding.versionMore.setOnClickListener { onMenu(version, it) }
         }
+    }
+
+    private class DiffCallback(
+        private val oldItems: List<ScriptVersion>,
+        private val newItems: List<ScriptVersion>
+    ) : DiffUtil.Callback() {
+        override fun getOldListSize(): Int = oldItems.size
+
+        override fun getNewListSize(): Int = newItems.size
+
+        override fun areItemsTheSame(oldPosition: Int, newPosition: Int): Boolean =
+            oldItems[oldPosition].id == newItems[newPosition].id
+
+        override fun areContentsTheSame(oldPosition: Int, newPosition: Int): Boolean =
+            oldItems[oldPosition] == newItems[newPosition]
     }
 }

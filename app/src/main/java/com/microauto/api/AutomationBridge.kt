@@ -100,7 +100,10 @@ class AutomationBridge(
 
     fun sleep(ms: Long) {
         checkDeadline()
-        Thread.sleep(ms.coerceAtLeast(0))
+        val remaining = deadline - System.currentTimeMillis()
+        if (remaining <= 0) throw ScriptTimeoutException()
+        Thread.sleep(minOf(ms.coerceAtLeast(0), remaining))
+        checkDeadline()
     }
 
     fun toast(message: String) {

@@ -11,7 +11,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="MicroAuto 用 JavaScript 调用 Android 无障碍服务，实现自动点击、滑动、读取界面和定时执行。"
+        android:text="@string/tutorial_intro"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -19,7 +19,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="快速开始"
+        android:text="@string/tutorial_quick_start"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
     <TextView
@@ -27,7 +27,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:lineSpacingExtra="4dp"
-        android:text="1. 打开系统设置 → 无障碍 → 已下载的服务 → MicroAuto，开启服务。\n2. 回到首页，点底部中间的「新建」，选择新建脚本或新建文件夹，或直接打开内置示例。\n3. 在编辑器里点“运行”。首次运行会请求通知权限，用于前台服务通知。"
+        android:text="@string/tutorial_quick_start_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -35,14 +35,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="第一个脚本"
+        android:text="@string/tutorial_first_script"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="用 text()、id()、desc() 等选择器找到控件，再调用 click()、setText()、scrollForward()。"
+        android:text="@string/tutorial_first_script_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -54,7 +54,7 @@
         android:fontFamily="monospace"
         android:lineSpacingExtra="2dp"
         android:padding="12dp"
-        android:text="var button = text(&quot;签到&quot;).findOne(5000);&#10;if (button) {&#10;  button.click();&#10;  toast(&quot;签到完成&quot;);&#10;} else {&#10;  log(&quot;没有找到按钮&quot;);&#10;}"
+        android:text="@string/tutorial_code_snippet"
         android:textColor="?attr/colorOnSurface"
         android:textIsSelectable="true"
         android:textSize="12sp" />
@@ -63,7 +63,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="定时任务"
+        android:text="@string/tutorial_schedule_title"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
     <TextView
@@ -71,7 +71,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:lineSpacingExtra="4dp"
-        android:text="编辑页 → 每天定时 → 设置 → 输入 HH:mm → 启用每天定时 → 保存定时。\n到点后会用前台服务运行当前脚本。精确闹钟不可用时会自动降级；部分厂商需要在电池设置里允许后台运行。"
+        android:text="@string/tutorial_schedule_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -79,7 +79,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="文件夹"
+        android:text="@string/folder_label"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
     <TextView
@@ -87,7 +87,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:lineSpacingExtra="4dp"
-        android:text="首页右上角菜单 → 新建文件夹，或点底部中间的「新建」。\n脚本菜单 → 移动到… 可以把脚本放进文件夹。\n删除文件夹时，里面的脚本会移回根目录，不会丢失。\n目前支持一级文件夹。"
+        android:text="@string/tutorial_folder_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -95,7 +95,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="版本管理"
+        android:text="@string/tutorial_versions_title"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
     <TextView
@@ -103,7 +103,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:lineSpacingExtra="4dp"
-        android:text="编辑页右上角菜单 → 发布版本，给当前内容打一个快照并写备注。\n菜单 → 版本历史，可查看、恢复或删除历史版本；恢复会覆盖当前内容。\n首页脚本菜单也可以直接打开版本历史。"
+        android:text="@string/tutorial_versions_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -111,14 +111,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="搜索"
+        android:text="@string/tutorial_search_title"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="首页顶部的搜索框会按名称过滤所有脚本，包括文件夹内的脚本；清空后回到当前文件夹视图。"
+        android:text="@string/tutorial_search_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -126,23 +126,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="导入与导出"
-        android:textAppearance="?attr/textAppearanceTitleMedium" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:lineSpacingExtra="4dp"
-        android:text="首页菜单或空状态可以导入 .js / .txt，导入的脚本会进入当前文件夹。\n脚本菜单 → 导出，会通过系统文件选择器保存为 .js。"
-        android:textAppearance="?attr/textAppearanceBodyMedium"
-        android:textColor="?attr/colorOnSurfaceVariant" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="权限与限制"
+        android:text="@string/tutorial_import_export_title"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
     <TextView
@@ -150,7 +134,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:lineSpacingExtra="4dp"
-        android:text="• 非 root，必须开启无障碍服务。\n• 锁屏、息屏时无法操作界面。\n• 部分应用会检测或拒绝无障碍操作。\n• 定时触发受 Doze 和厂商保活策略影响。\n• 首版没有 OCR、找图、悬浮窗和可视化选择器。"
+        android:text="@string/tutorial_import_export_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -158,7 +142,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
-        android:text="内置示例"
+        android:text="@string/tutorial_limits_title"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
     <TextView
@@ -166,7 +150,23 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:lineSpacingExtra="4dp"
-        android:text="首次启动会创建 5 个示例脚本。删除后可以在首页菜单或本页底部恢复。\n示例包括：节点树、按文本点击、滑动与等待、定时签到模板、常用工具函数。"
+        android:text="@string/tutorial_limits_body"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/tutorial_builtins_title"
+        android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:lineSpacingExtra="4dp"
+        android:text="@string/tutorial_builtins_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -177,5 +177,5 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
         android:layout_marginBottom="24dp"
-        android:text="恢复内置示例" />
+        android:text="@string/action_restore_builtins" />
 </LinearLayout>

@@ -34,5 +34,4 @@
     <color name="md_on_error">#690005</color>
     <color name="md_error_container">#93000A</color>
     <color name="md_on_error_container">#FFDAD6</color>
-    <color name="md_scrim">#000000</color>
 </resources>

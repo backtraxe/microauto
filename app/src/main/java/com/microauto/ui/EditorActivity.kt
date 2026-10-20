@@ -3,16 +3,23 @@ package com.microauto.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.Editable
+import android.text.Spanned
 import android.text.TextWatcher
+import android.text.style.BackgroundColorSpan
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
+import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -20,6 +27,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -28,9 +36,12 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.microauto.R
 import com.microauto.accessibility.AccessibilityUtils
+import com.microauto.core.FindMatch
+import com.microauto.core.FindReplaceEngine
 import com.microauto.core.ScheduleTime
 import com.microauto.databinding.ActivityEditorBinding
 import com.microauto.databinding.DialogVersionNoteBinding
+import com.microauto.databinding.SheetFindReplaceBinding
 import com.microauto.databinding.SheetScheduleBinding
 import com.microauto.schedule.SchedulePrefs
 import com.microauto.schedule.ScriptScheduler
@@ -59,9 +70,19 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEditorBinding
     private lateinit var repository: ScriptRepository
     private lateinit var scriptId: String
+    private lateinit var scriptName: String
     private var lastSavedContent = ""
     private var highlighter: JsSyntaxHighlighter? = null
     private var lastLineCount = 0
+    private var undoManager: EditorUndoManager? = null
+    private var findDialog: BottomSheetDialog? = null
+    private var findSheet: SheetFindReplaceBinding? = null
+    private var findMatches: List<FindMatch> = emptyList()
+    private var findIndex = -1
+    private var findQuery = ""
+    private var findCaseSensitive = false
+    private val findMatchColor = Color.argb(90, 255, 193, 7)
+    private val findCurrentColor = Color.argb(150, 255, 152, 0)
 
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -86,9 +107,11 @@ class EditorActivity : AppCompatActivity() {
             finish()
             return
         }
+        scriptName = meta.name
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
         EdgeToEdge.apply(this, binding.root)
+        binding.logScroll.clipToOutline = true
 
         binding.toolbar.title = meta.name
         binding.toolbar.setNavigationOnClickListener { requestFinish() }
@@ -98,6 +121,21 @@ class EditorActivity : AppCompatActivity() {
                 R.id.action_save -> {
                     saveScript()
                     toast("已保存")
+                    true
+                }
+
+                R.id.action_undo -> {
+                    undoManager?.undo()
+                    true
+                }
+
+                R.id.action_redo -> {
+                    undoManager?.redo()
+                    true
+                }
+
+                R.id.action_find_replace -> {
+                    showFindReplace()
                     true
                 }
 
@@ -118,6 +156,8 @@ class EditorActivity : AppCompatActivity() {
         lastSavedContent = repository.read(scriptId).orEmpty()
         binding.scriptEditor.setText(lastSavedContent)
         setupEditor()
+        undoManager = EditorUndoManager(binding.scriptEditor) { updateUndoRedo() }
+        undoManager?.start()
         updateScheduleSummary()
         bindActions()
         observeState()
@@ -129,8 +169,34 @@ class EditorActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        findDialog?.dismiss()
+        undoManager?.stop()
         highlighter?.release()
         super.onDestroy()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN &&
+            (event.isCtrlPressed || event.isMetaPressed)
+        ) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_Z -> {
+                    if (event.isShiftPressed) undoManager?.redo() else undoManager?.undo()
+                    return true
+                }
+
+                KeyEvent.KEYCODE_Y -> {
+                    undoManager?.redo()
+                    return true
+                }
+
+                KeyEvent.KEYCODE_F -> {
+                    showFindReplace()
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun setupEditor() {
@@ -152,6 +218,9 @@ class EditorActivity : AppCompatActivity() {
 
             override fun afterTextChanged(s: Editable?) {
                 binding.scriptEditor.post { updateLineNumbers() }
+                if (findDialog?.isShowing == true) {
+                    refreshFindMatches(fromCursor = false)
+                }
             }
         })
         updateLineNumbers()
@@ -220,6 +289,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun insertSymbol(symbol: String) {
+        undoManager?.breakCoalescing()
         val editor = binding.scriptEditor
         val start = minOf(editor.selectionStart, editor.selectionEnd).coerceAtLeast(0)
         val end = maxOf(editor.selectionStart, editor.selectionEnd).coerceAtLeast(0)
@@ -243,18 +313,22 @@ class EditorActivity : AppCompatActivity() {
             }
         }
         editor.requestFocus()
+        undoManager?.breakCoalescing()
     }
 
     private fun insertIndent() {
+        undoManager?.breakCoalescing()
         val editor = binding.scriptEditor
         val start = minOf(editor.selectionStart, editor.selectionEnd).coerceAtLeast(0)
         val end = maxOf(editor.selectionStart, editor.selectionEnd).coerceAtLeast(0)
         editor.text.replace(start, end, "  ")
         editor.setSelection(start + 2)
         editor.requestFocus()
+        undoManager?.breakCoalescing()
     }
 
     private fun insertNewline() {
+        undoManager?.breakCoalescing()
         val editor = binding.scriptEditor
         val start = minOf(editor.selectionStart, editor.selectionEnd).coerceAtLeast(0)
         val end = maxOf(editor.selectionStart, editor.selectionEnd).coerceAtLeast(0)
@@ -264,6 +338,7 @@ class EditorActivity : AppCompatActivity() {
         editor.text.replace(start, end, insertion)
         editor.setSelection(start + insertion.length)
         editor.requestFocus()
+        undoManager?.breakCoalescing()
     }
 
     private fun bindActions() {
@@ -275,7 +350,12 @@ class EditorActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             ensureNotificationPermission()
-            ScriptService.start(this, binding.scriptEditor.text.toString())
+            ScriptService.start(
+                this,
+                scriptId,
+                scriptName,
+                binding.scriptEditor.text.toString()
+            )
         }
         binding.btnStop.setOnClickListener {
             ScriptService.stop(this)
@@ -288,6 +368,8 @@ class EditorActivity : AppCompatActivity() {
             ensureNotificationPermission()
             ScriptService.start(
                 this,
+                null,
+                "看界面",
                 "toast(\"5 秒内切到目标界面\"); sleep(5000); dump();"
             )
         }
@@ -359,7 +441,186 @@ class EditorActivity : AppCompatActivity() {
         binding.scriptEditor.setSelection(content.length)
         updateLineNumbers()
         binding.scriptEditor.post { updateLineNumbers() }
+        undoManager?.reset()
     }
+
+    private fun updateUndoRedo() {
+        val menu = binding.toolbar.menu
+        menu.findItem(R.id.action_undo)?.isEnabled = undoManager?.canUndo() == true
+        menu.findItem(R.id.action_redo)?.isEnabled = undoManager?.canRedo() == true
+    }
+
+    @Suppress("DEPRECATION")
+    private fun showFindReplace() {
+        if (findDialog?.isShowing == true) {
+            findSheet?.findInput?.requestFocus()
+            return
+        }
+
+        val sheet = SheetFindReplaceBinding.inflate(layoutInflater)
+        val dialog = BottomSheetDialog(this)
+        dialog.setContentView(sheet.root)
+        findSheet = sheet
+        findDialog = dialog
+
+        selectedTextForFind()?.let { selected ->
+            sheet.findInput.setText(selected)
+            sheet.findInput.setSelection(selected.length)
+        }
+
+        sheet.findInput.doAfterTextChanged {
+            refreshFindMatches(fromCursor = true)
+        }
+        sheet.caseSensitive.setOnCheckedChangeListener { _, _ ->
+            refreshFindMatches(fromCursor = true)
+        }
+        sheet.findInput.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH ||
+                event?.keyCode == KeyEvent.KEYCODE_ENTER
+            ) {
+                moveFind(1)
+                true
+            } else {
+                false
+            }
+        }
+        sheet.btnFindPrev.setOnClickListener { moveFind(-1) }
+        sheet.btnFindNext.setOnClickListener { moveFind(1) }
+        sheet.btnReplace.setOnClickListener { replaceCurrent() }
+        sheet.btnReplaceAll.setOnClickListener { replaceAll() }
+
+        dialog.setOnDismissListener {
+            clearFindHighlights()
+            findDialog = null
+            findSheet = null
+            findMatches = emptyList()
+            findIndex = -1
+            findQuery = ""
+            findCaseSensitive = false
+        }
+        dialog.show()
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        sheet.findInput.post {
+            sheet.findInput.requestFocus()
+            getSystemService(InputMethodManager::class.java)
+                ?.showSoftInput(sheet.findInput, InputMethodManager.SHOW_IMPLICIT)
+        }
+        refreshFindMatches(fromCursor = true)
+    }
+
+    private fun selectedTextForFind(): String? {
+        val start = minOf(
+            binding.scriptEditor.selectionStart,
+            binding.scriptEditor.selectionEnd
+        )
+        val end = maxOf(
+            binding.scriptEditor.selectionStart,
+            binding.scriptEditor.selectionEnd
+        )
+        if (start < 0 || end <= start) return null
+        val selected = binding.scriptEditor.text
+            ?.subSequence(start, end)
+            ?.toString()
+            ?: return null
+        return selected.takeIf { it.length <= 100 && '\n' !in it }
+    }
+
+    private fun refreshFindMatches(fromCursor: Boolean) {
+        val sheet = findSheet ?: return
+        findQuery = sheet.findInput.text?.toString().orEmpty()
+        findCaseSensitive = sheet.caseSensitive.isChecked
+        val text = binding.scriptEditor.text?.toString().orEmpty()
+        findMatches = FindReplaceEngine.findAll(text, findQuery, findCaseSensitive)
+        if (findMatches.isEmpty()) {
+            findIndex = -1
+        } else if (fromCursor || findIndex !in findMatches.indices) {
+            val cursor = binding.scriptEditor.selectionStart.coerceAtLeast(0)
+            findIndex = findMatches
+                .indexOfFirst { it.endExclusive > cursor }
+                .let { if (it < 0) 0 else it }
+        }
+        applyFindHighlights()
+        updateFindCount()
+    }
+
+    private fun applyFindHighlights() {
+        val text = binding.scriptEditor.text ?: return
+        text.getSpans(0, text.length, FindHighlightSpan::class.java)
+            .forEach { text.removeSpan(it) }
+        if (findQuery.isEmpty()) return
+        for ((index, match) in findMatches.withIndex()) {
+            if (match.start < 0 || match.endExclusive > text.length) continue
+            val color = if (index == findIndex) findCurrentColor else findMatchColor
+            text.setSpan(
+                FindHighlightSpan(color),
+                match.start,
+                match.endExclusive,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+    }
+
+    private fun clearFindHighlights() {
+        val text = binding.scriptEditor.text ?: return
+        text.getSpans(0, text.length, FindHighlightSpan::class.java)
+            .forEach { text.removeSpan(it) }
+    }
+
+    private fun updateFindCount() {
+        val sheet = findSheet ?: return
+        sheet.matchCount.text = when {
+            findQuery.isEmpty() -> "0/0"
+            findMatches.isEmpty() -> "无匹配"
+            else -> "${findIndex + 1}/${findMatches.size}"
+        }
+    }
+
+    private fun moveFind(direction: Int) {
+        if (findMatches.isEmpty()) return
+        findIndex = FindReplaceEngine.nextIndex(findIndex, findMatches.size, direction)
+        selectFindMatch()
+    }
+
+    private fun selectFindMatch() {
+        val match = findMatches.getOrNull(findIndex) ?: return
+        val length = binding.scriptEditor.text?.length ?: return
+        if (match.start < 0 || match.endExclusive > length) return
+        binding.scriptEditor.setSelection(match.start, match.endExclusive)
+        binding.scriptEditor.post {
+            binding.scriptEditor.bringPointIntoView(match.start)
+        }
+        applyFindHighlights()
+        updateFindCount()
+    }
+
+    private fun replaceCurrent() {
+        val match = findMatches.getOrNull(findIndex) ?: return
+        val replacement = findSheet?.replaceInput?.text?.toString().orEmpty()
+        val editable = binding.scriptEditor.text ?: return
+        undoManager?.breakCoalescing()
+        editable.replace(match.start, match.endExclusive, replacement)
+        undoManager?.breakCoalescing()
+        selectFindMatch()
+    }
+
+    private fun replaceAll() {
+        if (findMatches.isEmpty()) return
+        val replacement = findSheet?.replaceInput?.text?.toString().orEmpty()
+        val editable = binding.scriptEditor.text ?: return
+        val replaced = FindReplaceEngine.replaceAll(
+            editable.toString(),
+            findMatches,
+            replacement
+        )
+        undoManager?.breakCoalescing()
+        editable.replace(0, editable.length, replaced)
+        undoManager?.breakCoalescing()
+        binding.scriptEditor.setSelection(0)
+        refreshFindMatches(fromCursor = true)
+        selectFindMatch()
+    }
+
+    private class FindHighlightSpan(color: Int) : BackgroundColorSpan(color)
 
     private fun requestFinish() {
         val current = binding.scriptEditor.text.toString()
@@ -380,10 +641,9 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun updateScheduleSummary() {
-        val scheduledHere = SchedulePrefs.isEnabled(this) &&
-            SchedulePrefs.scriptId(this) == scriptId
-        binding.scheduleSummary.text = if (scheduledHere) {
-            "每天 ${timeText()}"
+        val schedule = SchedulePrefs.scheduleFor(this, scriptId)
+        binding.scheduleSummary.text = if (schedule?.enabled == true) {
+            "每天 ${timeText(schedule.hour, schedule.minute)}"
         } else {
             "未启用"
         }
@@ -391,16 +651,15 @@ class EditorActivity : AppCompatActivity() {
 
     private fun showScheduleSheet() {
         val sheetBinding = SheetScheduleBinding.inflate(layoutInflater)
-        val currentlyScheduled = SchedulePrefs.scriptId(this) == scriptId
+        val current = SchedulePrefs.scheduleFor(this, scriptId)
         sheetBinding.scheduleTime.setText(
-            if (currentlyScheduled) {
-                timeText()
+            if (current != null) {
+                timeText(current.hour, current.minute)
             } else {
                 "08:00"
             }
         )
-        sheetBinding.scheduleSwitch.isChecked =
-            currentlyScheduled && SchedulePrefs.isEnabled(this)
+        sheetBinding.scheduleSwitch.isChecked = current?.enabled == true
 
         val dialog = BottomSheetDialog(this)
         dialog.setContentView(sheetBinding.root)
@@ -413,23 +672,31 @@ class EditorActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             val enabled = sheetBinding.scheduleSwitch.isChecked
-            if (!enabled && !currentlyScheduled) {
+            if (!enabled && current == null) {
                 toast("当前脚本未启用定时")
                 dialog.dismiss()
                 return@setOnClickListener
             }
             if (enabled) {
-                SchedulePrefs.save(this, scriptId, true, parsed.first, parsed.second)
-                ScriptScheduler.scheduleNext(this)
+                current?.let { ScriptScheduler.cancelScript(this, it) }
+                val schedule = SchedulePrefs.save(
+                    this,
+                    scriptId,
+                    true,
+                    parsed.first,
+                    parsed.second
+                )
+                SchedulePrefs.clearPending(this, scriptId)
+                ScriptScheduler.scheduleScript(this, schedule)
+                ensureNotificationPermission()
                 toast(
                     "已设置每天 ${
                         String.format(Locale.US, "%02d:%02d", parsed.first, parsed.second)
                     }"
                 )
             } else {
-                SchedulePrefs.setEnabled(this, false)
-                SchedulePrefs.setScriptId(this, null)
-                ScriptScheduler.cancel(this)
+                current?.let { ScriptScheduler.cancelScript(this, it) }
+                SchedulePrefs.remove(this, scriptId)
                 toast("已关闭定时")
             }
             updateScheduleSummary()
@@ -438,11 +705,11 @@ class EditorActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun timeText(): String = String.format(
+    private fun timeText(hour: Int, minute: Int): String = String.format(
         Locale.US,
         "%02d:%02d",
-        SchedulePrefs.hour(this),
-        SchedulePrefs.minute(this)
+        hour,
+        minute
     )
 
     private fun ensureNotificationPermission() {

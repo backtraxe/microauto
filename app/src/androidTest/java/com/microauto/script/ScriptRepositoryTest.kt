@@ -164,4 +164,61 @@ class ScriptRepositoryTest {
         assertTrue(repository.delete(script.id))
         assertTrue(repository.versions(script.id).isEmpty())
     }
+
+    @Test
+    fun restoreSnapshotsCurrentContentFirst() {
+        val script = repository.create("版本脚本", "log(1);")
+        val v1 = repository.publishVersion(script.id, "第一版")!!
+        repository.save(script.id, "log(2);")
+
+        assertTrue(repository.restoreVersion(v1.id))
+
+        val versions = repository.versions(script.id)
+        assertTrue(versions.any { it.note.contains("恢复前") })
+        assertEquals("log(1);", repository.read(script.id))
+    }
+
+    @Test
+    fun newRepositoryInstanceSeesWritesFromAnotherInstance() {
+        val first = ScriptRepository(context)
+        val script = first.create("共享脚本", "log(1);")
+        val second = ScriptRepository(context)
+
+        assertEquals(1, second.list().size)
+        assertTrue(second.save(script.id, "log(2);"))
+
+        assertEquals("log(2);", first.read(script.id))
+        assertEquals("共享脚本", first.find(script.id)?.name)
+    }
+
+    @Test
+    fun recoversFromCorruptIndexAndKeepsBackup() {
+        val scriptsDir = File(context.filesDir, "scripts").apply { mkdirs() }
+        File(scriptsDir, "index.json").writeText("{not json")
+        RepositoryHealth.clear()
+
+        val scripts = repository.ensureInitialized()
+
+        assertTrue(scripts.isEmpty())
+        assertNotNull(RepositoryHealth.message.value)
+        val backups = scriptsDir.listFiles { file -> file.name.startsWith("index.json.corrupt-") }
+        assertTrue(backups?.isNotEmpty() == true)
+    }
+
+    @Test
+    fun keepsValidEntriesWhenOneIndexRecordIsMalformed() {
+        val scriptsDir = File(context.filesDir, "scripts").apply { mkdirs() }
+        File(scriptsDir, "index.json").writeText(
+            """[{"id":"a","name":"保留","createdAt":1,"updatedAt":2},{"name":"坏记录"}]"""
+        )
+        File(scriptsDir, "a.js").writeText("log(1);")
+        RepositoryHealth.clear()
+
+        val scripts = repository.ensureInitialized()
+
+        assertEquals(1, scripts.size)
+        assertEquals("保留", scripts[0].name)
+        assertNotNull(RepositoryHealth.message.value)
+        assertEquals("log(1);", repository.read("a"))
+    }
 }

@@ -1,8 +1,6 @@
 package com.microauto.script
 
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -26,14 +24,17 @@ class ScriptService : Service() {
         const val ACTION_RUN = "com.microauto.action.RUN"
         const val ACTION_STOP = "com.microauto.action.STOP"
         const val EXTRA_SCRIPT = "script"
+        const val EXTRA_SCRIPT_ID = "script_id"
+        const val EXTRA_SCRIPT_NAME = "script_name"
 
-        private const val CHANNEL_ID = "script_run"
         private const val NOTIFICATION_ID = 1001
 
-        fun start(context: Context, script: String) {
+        fun start(context: Context, scriptId: String?, scriptName: String, script: String) {
             val intent = Intent(context, ScriptService::class.java).apply {
                 action = ACTION_RUN
                 putExtra(EXTRA_SCRIPT, script)
+                putExtra(EXTRA_SCRIPT_ID, scriptId)
+                putExtra(EXTRA_SCRIPT_NAME, scriptName)
             }
             ContextCompat.startForegroundService(context, intent)
         }
@@ -47,15 +48,19 @@ class ScriptService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var job: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var runningName = "脚本"
 
     @Volatile
     private var active = false
+
+    @Volatile
+    private var stoppedByUser = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
-        createChannel()
+        RunNotifications.ensureChannel(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -75,16 +80,19 @@ class ScriptService : Service() {
                     RunLog.append("[跳过] 已有脚本在运行")
                     return START_NOT_STICKY
                 }
+                runningName = intent.getStringExtra(EXTRA_SCRIPT_NAME) ?: "脚本"
+                stoppedByUser = false
                 active = true
-                startForegroundCompat("正在运行脚本")
+                startForegroundCompat("正在运行：$runningName")
                 RunLog.clear()
                 acquireWakeLock()
                 job = scope.launch {
+                    var success = false
                     try {
-                        ScriptRunner.run(this@ScriptService, script)
+                        success = ScriptRunner.run(this@ScriptService, script)
                     } finally {
                         active = false
-                        finishRun()
+                        finishRun(success)
                     }
                 }
             }
@@ -94,16 +102,18 @@ class ScriptService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun finishRun() {
+    private fun finishRun(success: Boolean) {
         releaseWakeLock()
         RunState.setRunning(false)
-        getSystemService(NotificationManager::class.java)
-            ?.notify(NOTIFICATION_ID, buildNotification("运行结束", false))
-        stopForeground(STOP_FOREGROUND_DETACH)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (!stoppedByUser) {
+            RunNotifications.notifyResult(this, runningName, success)
+        }
         stopSelf()
     }
 
     private fun stopRun() {
+        stoppedByUser = true
         active = false
         job?.cancel()
         ScriptRunner.cancel()
@@ -140,7 +150,7 @@ class ScriptService : Service() {
             stopIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        return NotificationCompat.Builder(this, RunNotifications.CHANNEL_ID)
             .setContentTitle("MicroAuto")
             .setContentText(text)
             .setContentIntent(contentIntent)
@@ -148,16 +158,6 @@ class ScriptService : Service() {
             .setOngoing(ongoing)
             .addAction(android.R.drawable.ic_media_pause, "停止", stopPending)
             .build()
-    }
-
-    private fun createChannel() {
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "脚本运行",
-            NotificationManager.IMPORTANCE_LOW
-        )
-        manager.createNotificationChannel(channel)
     }
 
     private fun acquireWakeLock() {

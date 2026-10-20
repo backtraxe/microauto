@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.action.ViewActions.click
@@ -77,6 +78,34 @@ class EditorActivityTest {
             onView(withId(R.id.action_save)).perform(click())
             Thread.sleep(300)
             assertEquals("toast('saved');", ScriptRepository(context).read(scriptId))
+        }
+    }
+
+    @Test
+    fun undoAndRedoRestoreEditorContent() {
+        launch().use {
+            onView(withId(R.id.scriptEditor)).perform(replaceText("abc"))
+            onView(withId(R.id.action_undo)).perform(click())
+            onView(withId(R.id.scriptEditor)).check(matches(withText("toast('hello');")))
+            onView(withId(R.id.action_redo)).perform(click())
+            onView(withId(R.id.scriptEditor)).check(matches(withText("abc")))
+        }
+    }
+
+    @Test
+    fun findReplaceAllUpdatesScriptContent() {
+        launch().use { scenario ->
+            onView(withId(R.id.scriptEditor)).perform(replaceText("cat cat"))
+            openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
+            onView(withText("查找替换")).perform(click())
+            onView(withId(R.id.findInput)).perform(replaceText("cat"))
+            onView(withId(R.id.replaceInput)).perform(replaceText("dog"))
+            closeSoftKeyboard()
+            onView(withId(R.id.btnReplaceAll)).perform(click())
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<android.widget.EditText>(R.id.scriptEditor)
+                assertEquals("dog dog", editor.text.toString())
+            }
         }
     }
 

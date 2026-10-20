@@ -20,7 +20,7 @@ object JsTokenizer {
             """|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)""" +
             """|(\b(?:const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|new|try|catch|finally|throw|class|extends|async|await|of|in|typeof|instanceof|delete|void|yield|true|false|null|undefined|this)\b)""" +
             """|(\b\d+(?:\.\d+)?\b)""" +
-            """|(\b(?:toast|log|sleep|tap|swipe|dump|currentPackage|click|setText|find|waitFor|press|back|home|launch|open)\b)"""
+            """|(\b(?:textContains|textMatches|descContains|idContains|waitForPackage|scrollForward|currentPackage|launchApp|findOne|findAll|longClick|className|clickable|selected|enabled|waitFor|setText|bounds|exists|press|swipe|sleep|toast|click|text|desc|exit|dump|back|home|recents|log|id)\b)"""
     )
 
     fun tokenize(text: String): List<JsToken> {

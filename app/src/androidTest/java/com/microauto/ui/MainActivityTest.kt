@@ -88,6 +88,7 @@ class MainActivityTest {
     fun searchFiltersScripts() {
         ActivityScenario.launch(MainActivity::class.java).use {
             onView(withId(R.id.searchInput)).perform(replaceText("节点"))
+            Thread.sleep(400)
             onView(withId(R.id.scriptList)).check { view, _ ->
                 val recycler = view as RecyclerView
                 assertEquals(1, recycler.adapter?.itemCount)

@@ -1,10 +1,14 @@
 package com.microauto.ui
 
+import android.Manifest
 import android.app.AlarmManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.OpenableColumns
 import android.provider.Settings
@@ -16,6 +20,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
@@ -23,19 +29,22 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.microauto.R
 import com.microauto.accessibility.AccessibilityUtils
+import com.microauto.core.DateFormats
 import com.microauto.core.ScriptNaming
 import com.microauto.databinding.ActivityMainBinding
 import com.microauto.databinding.DialogRenameBinding
 import com.microauto.schedule.SchedulePrefs
 import com.microauto.schedule.ScriptScheduler
 import com.microauto.script.FolderMeta
+import com.microauto.script.RepositoryHealth
+import com.microauto.script.RunState
+import com.microauto.script.ScriptBackup
 import com.microauto.script.ScriptMeta
 import com.microauto.script.ScriptRepository
+import com.microauto.script.ScriptService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.DateFormat
-import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -43,6 +52,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var repository: ScriptRepository
     private lateinit var adapter: LibraryAdapter
     private var currentFolderId: String? = null
+    private val searchHandler = Handler(Looper.getMainLooper())
+    private val searchRefresh = Runnable { refresh() }
 
     private val importLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -57,6 +68,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var pendingExportId: String? = null
+
+    private val backupLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) backupAll(uri)
+    }
+
+    private val restoreLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) confirmRestore(uri)
+    }
+
+    private val notificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,6 +109,7 @@ class MainActivity : AppCompatActivity() {
         binding.scriptList.adapter = adapter
 
         repository.ensureInitialized()
+        showRepositoryHealth()
         val savedFolder = currentFolderId
         if (savedFolder != null && repository.folder(savedFolder) == null) {
             currentFolderId = null
@@ -111,6 +139,16 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+    }
+
+    private fun showRepositoryHealth() {
+        val message = RepositoryHealth.message.value ?: return
+        RepositoryHealth.clear()
+        MaterialAlertDialogBuilder(this)
+            .setTitle("本地数据已恢复")
+            .setMessage(message)
+            .setPositiveButton("知道了", null)
+            .show()
     }
 
     private fun setupUi() {
@@ -146,6 +184,16 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
 
+                R.id.action_backup -> {
+                    backupLauncher.launch(BACKUP_FILE_NAME)
+                    true
+                }
+
+                R.id.action_restore -> {
+                    restoreLauncher.launch(arrayOf("*/*"))
+                    true
+                }
+
                 R.id.action_restore_builtins -> {
                     restoreBuiltins()
                     true
@@ -176,7 +224,10 @@ class MainActivity : AppCompatActivity() {
                 else -> false
             }
         }
-        binding.searchInput.doAfterTextChanged { refresh() }
+        binding.searchInput.doAfterTextChanged {
+            searchHandler.removeCallbacks(searchRefresh)
+            searchHandler.postDelayed(searchRefresh, SEARCH_DEBOUNCE_MS)
+        }
         binding.searchInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 hideKeyboard()
@@ -297,18 +348,21 @@ class MainActivity : AppCompatActivity() {
         } else {
             "省电：未允许"
         }
-        val scheduled = SchedulePrefs.scriptId(this)?.let { repository.find(it) }
-        menu.findItem(R.id.action_schedule)?.title =
-            if (SchedulePrefs.isEnabled(this) && scheduled != null) {
-                "定时 ${timeText()} · ${scheduled.name}"
-            } else {
-                "定时：未启用"
+        val schedules = SchedulePrefs.enabled(this)
+        menu.findItem(R.id.action_schedule)?.title = when {
+            schedules.isEmpty() -> "定时：未启用"
+            schedules.size == 1 -> {
+                val schedule = schedules.first()
+                val name = repository.find(schedule.scriptId)?.name ?: "脚本"
+                "定时 ${timeText(schedule.hour, schedule.minute)} · $name"
             }
+
+            else -> "定时：${schedules.size} 个脚本"
+        }
     }
 
     private fun subtitle(meta: ScriptMeta): String {
-        val updated = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-            .format(Date(meta.updatedAt))
+        val updated = DateFormats.format(meta.updatedAt)
         val folder = meta.folderId?.let { repository.folderName(it) }
         return if (folder != null) {
             "在 $folder · 修改于 $updated"
@@ -318,17 +372,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scheduleText(meta: ScriptMeta): String? {
-        if (!SchedulePrefs.isEnabled(this) || SchedulePrefs.scriptId(this) != meta.id) {
-            return null
-        }
-        return "每天 ${timeText()}"
+        val schedule = SchedulePrefs.scheduleFor(this, meta.id)?.takeIf { it.enabled }
+            ?: return null
+        return "每天 ${timeText(schedule.hour, schedule.minute)}"
     }
 
-    private fun timeText(): String = String.format(
+    private fun timeText(hour: Int, minute: Int): String = String.format(
         Locale.US,
         "%02d:%02d",
-        SchedulePrefs.hour(this),
-        SchedulePrefs.minute(this)
+        hour,
+        minute
     )
 
     private fun showCreateMenu(anchor: View) {
@@ -399,12 +452,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openScheduledScript() {
-        val id = SchedulePrefs.scriptId(this)
-        val meta = id?.let { repository.find(it) }
-        if (meta != null && SchedulePrefs.isEnabled(this)) {
-            openEditor(meta.id)
-        } else {
-            toast("未启用定时")
+        val schedules = SchedulePrefs.enabled(this)
+        when (schedules.size) {
+            0 -> toast("未启用定时")
+            1 -> openEditor(schedules.first().scriptId)
+            else -> {
+                val labels = schedules.map { schedule ->
+                    val name = repository.find(schedule.scriptId)?.name ?: "脚本"
+                    "$name · ${timeText(schedule.hour, schedule.minute)}"
+                }.toTypedArray()
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("定时脚本")
+                    .setItems(labels) { _, which ->
+                        openEditor(schedules[which].scriptId)
+                    }
+                    .show()
+            }
         }
     }
 
@@ -421,7 +484,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(
                 Intent(
                     Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                    Uri.parse("package:$packageName")
+                    "package:$packageName".toUri()
                 )
             )
         } else {
@@ -438,13 +501,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun showScriptMenu(meta: ScriptMeta, anchor: View) {
         val popup = PopupMenu(this, anchor)
-        popup.menu.add(0, 1, 0, "重命名")
-        popup.menu.add(0, 2, 1, "移动到…")
-        popup.menu.add(0, 3, 2, "版本历史")
-        popup.menu.add(0, 4, 3, "导出")
-        popup.menu.add(0, 5, 4, "删除")
+        popup.menu.add(0, 6, 0, "运行")
+        popup.menu.add(0, 1, 1, "重命名")
+        popup.menu.add(0, 7, 2, "复制")
+        popup.menu.add(0, 2, 3, "移动到…")
+        popup.menu.add(0, 3, 4, "版本历史")
+        popup.menu.add(0, 4, 5, "导出")
+        popup.menu.add(0, 5, 6, "删除")
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
+                6 -> {
+                    runScript(meta)
+                    true
+                }
+
+                7 -> {
+                    duplicateScript(meta)
+                    true
+                }
+
                 1 -> {
                     showRenameDialog(meta)
                     true
@@ -478,6 +553,51 @@ class MainActivity : AppCompatActivity() {
             }
         }
         popup.show()
+    }
+
+    private fun runScript(meta: ScriptMeta) {
+        if (RunState.running.value) {
+            toast("已有脚本在运行")
+            return
+        }
+        if (!AccessibilityUtils.isEnabled(this)) {
+            toast("请先开启无障碍服务")
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            return
+        }
+        val content = repository.read(meta.id)
+        if (content == null) {
+            toast("脚本不存在")
+            return
+        }
+        ensureNotificationPermission()
+        runCatching {
+            ScriptService.start(this, meta.id, meta.name, content)
+        }.onFailure {
+            toast("启动失败：${it.message}")
+        }
+    }
+
+    private fun duplicateScript(meta: ScriptMeta) {
+        val content = repository.read(meta.id)
+        if (content == null) {
+            toast("脚本不存在")
+            return
+        }
+        val copy = repository.create("${meta.name} (副本)", content, meta.folderId)
+        refresh()
+        openEditor(copy.id)
+    }
+
+    private fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     private fun showFolderMenu(folder: FolderMeta, anchor: View) {
@@ -568,10 +688,10 @@ class MainActivity : AppCompatActivity() {
             .setMessage("确定删除「${meta.name}」？")
             .setPositiveButton("删除") { _, _ ->
                 repository.delete(meta.id)
-                if (SchedulePrefs.scriptId(this) == meta.id) {
-                    SchedulePrefs.setEnabled(this, false)
-                    SchedulePrefs.setScriptId(this, null)
-                    ScriptScheduler.cancel(this)
+                val schedule = SchedulePrefs.scheduleFor(this, meta.id)
+                if (schedule != null) {
+                    ScriptScheduler.cancelScript(this, schedule)
+                    SchedulePrefs.remove(this, meta.id)
                 }
                 refresh()
             }
@@ -648,6 +768,44 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun backupAll(uri: Uri) {
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { ScriptBackup.export(this@MainActivity, uri) }
+            }
+            result.onSuccess { count ->
+                toast("已备份 $count 个脚本")
+            }.onFailure {
+                toast("备份失败：${it.message}")
+            }
+        }
+    }
+
+    private fun confirmRestore(uri: Uri) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("恢复备份")
+            .setMessage("会覆盖当前所有脚本、文件夹和版本历史，确定继续？")
+            .setPositiveButton("恢复") { _, _ -> restoreAll(uri) }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun restoreAll(uri: Uri) {
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { ScriptBackup.restore(this@MainActivity, uri) }
+            }
+            result.onSuccess { count ->
+                currentFolderId = null
+                refresh()
+                showRepositoryHealth()
+                toast("已恢复 $count 个脚本")
+            }.onFailure {
+                toast("恢复失败：${it.message}")
+            }
+        }
+    }
+
     private fun toast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
@@ -656,6 +814,11 @@ class MainActivity : AppCompatActivity() {
         getSystemService(InputMethodManager::class.java)
             ?.hideSoftInputFromWindow(binding.searchInput.windowToken, 0)
         binding.searchInput.clearFocus()
+    }
+
+    override fun onDestroy() {
+        searchHandler.removeCallbacks(searchRefresh)
+        super.onDestroy()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -667,6 +830,8 @@ class MainActivity : AppCompatActivity() {
 
     private companion object {
         const val MAX_IMPORT_CHARS = 1_000_000
+        const val SEARCH_DEBOUNCE_MS = 250L
+        const val BACKUP_FILE_NAME = "MicroAuto-backup.zip"
         const val KEY_PENDING_EXPORT = "pending_export_id"
         const val KEY_FOLDER = "current_folder_id"
         const val KEY_TAB = "current_tab"

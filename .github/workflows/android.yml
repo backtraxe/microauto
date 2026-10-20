@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -37,7 +39,7 @@ jobs:
       - name: Install SDK packages
         run: |
           yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -64,7 +66,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             ./gradlew :app:assembleRelease --no-daemon -Pandroid.builder.sdkDownload=false
             APK=$(ls app/build/outputs/apk/release/MicroAuto-*.apk)
-            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | grep -q "CN=MicroAuto"
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | grep -q "CN=MicroAuto"
           fi
 
       - name: Upload debug APK
@@ -88,6 +90,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -103,7 +107,7 @@ jobs:
       - name: Install SDK packages
         run: |
           yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

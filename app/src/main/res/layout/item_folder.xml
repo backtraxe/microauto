@@ -22,7 +22,7 @@
         <ImageView
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:contentDescription="文件夹"
+            android:contentDescription="@string/folder_label"
             android:src="@drawable/ic_folder"
             app:tint="?attr/colorOnSurfaceVariant" />
 
@@ -57,7 +57,7 @@
             style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:contentDescription="文件夹操作"
+            android:contentDescription="@string/content_desc_folder_actions"
             app:icon="@drawable/ic_more_vert"
             app:iconTint="?attr/colorOnSurfaceVariant" />
     </LinearLayout>

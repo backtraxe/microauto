@@ -3,8 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:layout_height="match_parent">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -39,7 +38,7 @@
                     android:layout_marginStart="16dp"
                     android:layout_marginTop="4dp"
                     android:layout_marginEnd="16dp"
-                    android:hint="搜索脚本"
+                    android:hint="@string/search_scripts_hint"
                     app:boxBackgroundColor="?attr/colorSurfaceContainerHigh"
                     app:boxCornerRadiusBottomEnd="16dp"
                     app:boxCornerRadiusBottomStart="16dp"
@@ -92,7 +91,7 @@
                             android:id="@+id/emptyTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="还没有脚本"
+                            android:text="@string/empty_no_scripts"
                             android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                         <TextView
@@ -101,7 +100,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
                             android:gravity="center"
-                            android:text="新建一个脚本，或从文件导入 .js / .txt"
+                            android:text="@string/empty_no_scripts_hint"
                             android:textAppearance="?attr/textAppearanceBodyMedium"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -110,21 +109,21 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="16dp"
-                            android:text="新建脚本" />
+                            android:text="@string/action_new_script" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnEmptyImport"
                             style="@style/Widget.Material3.Button.TextButton"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="导入脚本" />
+                            android:text="@string/action_import_script" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnEmptyFolder"
                             style="@style/Widget.Material3.Button.TextButton"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="新建文件夹" />
+                            android:text="@string/action_new_folder" />
                     </LinearLayout>
                 </FrameLayout>
             </LinearLayout>

@@ -9,7 +9,10 @@ class BootReceiver : BroadcastReceiver() {
         when (intent?.action) {
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_TIME_CHANGED,
-            Intent.ACTION_TIMEZONE_CHANGED -> ScriptScheduler.scheduleNext(context)
+            Intent.ACTION_TIMEZONE_CHANGED -> {
+                ScriptScheduler.rescheduleAll(context)
+                ScriptScheduler.restorePending(context)
+            }
         }
     }
 }

@@ -15,7 +15,7 @@ if [ ! -x "$EMULATOR" ]; then
   exit 1
 fi
 
-IMAGE_PATH="${SYSTEM_IMAGE//;/\/}"
+IMAGE_PATH=$(printf '%s' "$SYSTEM_IMAGE" | tr ';' '/')
 if [ ! -d "$SDK_ROOT/$IMAGE_PATH" ]; then
   echo "Installing $SYSTEM_IMAGE"
   yes | "$SDKMANAGER" "$SYSTEM_IMAGE" >/dev/null

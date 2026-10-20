@@ -4,7 +4,6 @@
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
     android:orientation="vertical">
 
     <com.google.android.material.appbar.MaterialToolbar
@@ -68,7 +67,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="还没有发布版本"
+                android:text="@string/empty_no_versions"
                 android:textAppearance="?attr/textAppearanceTitleMedium" />
 
             <TextView
@@ -76,7 +75,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
                 android:gravity="center"
-                android:text="在编辑页菜单里点「发布版本」，给当前内容打一个快照。"
+                android:text="@string/empty_no_versions_hint"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOnSurfaceVariant" />
         </LinearLayout>

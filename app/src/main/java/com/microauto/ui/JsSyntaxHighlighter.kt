@@ -2,7 +2,6 @@ package com.microauto.ui
 
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -10,6 +9,7 @@ import android.text.Spanned
 import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
 import android.widget.EditText
+import androidx.core.graphics.toColorInt
 import com.microauto.core.JsTokenType
 import com.microauto.core.JsTokenizer
 
@@ -77,19 +77,19 @@ class JsSyntaxHighlighter(
                     Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
                 return if (dark) {
                     Palette(
-                        keyword = Color.parseColor("#C4B5FD"),
-                        string = Color.parseColor("#6EE7B7"),
-                        comment = Color.parseColor("#9CA3AF"),
-                        number = Color.parseColor("#FCD34D"),
-                        builtin = Color.parseColor("#93C5FD")
+                        keyword = "#C4B5FD".toColorInt(),
+                        string = "#6EE7B7".toColorInt(),
+                        comment = "#9CA3AF".toColorInt(),
+                        number = "#FCD34D".toColorInt(),
+                        builtin = "#93C5FD".toColorInt()
                     )
                 } else {
                     Palette(
-                        keyword = Color.parseColor("#6D28D9"),
-                        string = Color.parseColor("#047857"),
-                        comment = Color.parseColor("#6B7280"),
-                        number = Color.parseColor("#B45309"),
-                        builtin = Color.parseColor("#1D4ED8")
+                        keyword = "#6D28D9".toColorInt(),
+                        string = "#047857".toColorInt(),
+                        comment = "#6B7280".toColorInt(),
+                        number = "#B45309".toColorInt(),
+                        builtin = "#1D4ED8".toColorInt()
                     )
                 }
             }

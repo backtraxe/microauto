@@ -8,6 +8,7 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.microauto.R
 import com.microauto.databinding.ActivityVersionsBinding
 import com.microauto.script.ScriptRepository
 import com.microauto.script.ScriptVersion
@@ -51,7 +52,7 @@ class VersionsActivity : AppCompatActivity() {
         adapter.submit(versions)
         binding.emptyState.isVisible = versions.isEmpty()
         binding.versionList.isVisible = versions.isNotEmpty()
-        binding.versionCount.text = "共 ${versions.size} 个版本"
+        binding.versionCount.text = getString(R.string.version_count, versions.size)
     }
 
     private fun showMenu(version: ScriptVersion, anchor: View) {

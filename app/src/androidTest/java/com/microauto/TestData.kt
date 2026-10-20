@@ -2,6 +2,7 @@ package com.microauto
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.microauto.script.RepositoryHealth
 import com.microauto.script.ScriptRepository
 import java.io.File
 
@@ -16,6 +17,8 @@ object TestData {
             .edit()
             .clear()
             .commit()
+        RepositoryHealth.clear()
+        ScriptRepository.clearCache()
     }
 
     fun repository(): ScriptRepository = ScriptRepository(context())

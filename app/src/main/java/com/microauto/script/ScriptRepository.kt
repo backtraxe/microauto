@@ -2,8 +2,6 @@ package com.microauto.script
 
 import android.content.Context
 import com.microauto.core.ScriptNaming
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
@@ -43,21 +41,23 @@ class ScriptRepository(context: Context) {
 
     fun indexExists(): Boolean = indexFile.exists()
 
-    fun ensureInitialized(): List<ScriptMeta> {
-        if (indexFile.exists()) return listAll()
-        val legacy = File(appContext.filesDir, "script.js")
-        if (legacy.exists()) {
-            val legacyContent = runCatching { legacy.readText() }.getOrDefault("")
-            if (legacyContent.isNotBlank()) {
-                create("默认脚本", legacyContent)
+    fun ensureInitialized(): List<ScriptMeta> = locked {
+        if (!indexFile.exists()) {
+            clearCache()
+            val legacy = File(appContext.filesDir, "script.js")
+            if (legacy.exists()) {
+                val legacyContent = runCatching { legacy.readText() }.getOrDefault("")
+                if (legacyContent.isNotBlank()) {
+                    create("默认脚本", legacyContent)
+                }
+                legacy.delete()
             }
-            legacy.delete()
+            ensureBuiltins()
         }
-        ensureBuiltins()
-        return listAll()
+        listAll()
     }
 
-    fun ensureBuiltins(): Int {
+    fun ensureBuiltins(): Int = locked {
         val existing = readIndex().map { it.name }.toSet()
         var added = 0
         for (item in BuiltinScripts.all) {
@@ -66,7 +66,7 @@ class ScriptRepository(context: Context) {
                 added++
             }
         }
-        return added
+        added
     }
 
     fun listAll(): List<ScriptMeta> = readIndex().sortedByDescending { it.updatedAt }
@@ -82,7 +82,7 @@ class ScriptRepository(context: Context) {
         name: String,
         content: String,
         folderId: String? = null
-    ): ScriptMeta {
+    ): ScriptMeta = locked {
         val metas = readIndex()
         val uniqueName = ScriptNaming.uniqueName(name, metas.map { it.name }.toSet())
         val id = UUID.randomUUID().toString()
@@ -90,10 +90,10 @@ class ScriptRepository(context: Context) {
         val targetFolder = folderId?.takeIf { candidate ->
             readFolders().any { it.id == candidate }
         }
-        File(dir, "$id.js").writeText(content)
+        writeAtomically(File(dir, "$id.js"), content)
         val meta = ScriptMeta(id, uniqueName, now, now, targetFolder)
         writeIndex(metas + meta)
-        return meta
+        meta
     }
 
     fun read(id: String): String? {
@@ -102,63 +102,82 @@ class ScriptRepository(context: Context) {
         return runCatching { file.readText() }.getOrNull()
     }
 
-    fun save(id: String, content: String): Boolean {
+    fun save(id: String, content: String): Boolean = locked {
         val metas = readIndex().toMutableList()
         val index = metas.indexOfFirst { it.id == id }
-        if (index < 0) return false
-        File(dir, "$id.js").writeText(content)
-        metas[index] = metas[index].copy(updatedAt = System.currentTimeMillis())
-        writeIndex(metas)
-        return true
+        if (index < 0) {
+            false
+        } else {
+            writeAtomically(File(dir, "$id.js"), content)
+            metas[index] = metas[index].copy(updatedAt = System.currentTimeMillis())
+            writeIndex(metas)
+            true
+        }
     }
 
-    fun rename(id: String, newName: String): Boolean {
+    fun rename(id: String, newName: String): Boolean = locked {
         val metas = readIndex().toMutableList()
         val index = metas.indexOfFirst { it.id == id }
-        if (index < 0) return false
-        val base = ScriptNaming.sanitize(newName)
-        if (base.isEmpty()) return false
-        val uniqueName = ScriptNaming.uniqueName(
-            base,
-            metas.map { it.name }.toSet(),
-            exclude = metas[index].name
-        )
-        metas[index] = metas[index].copy(
-            name = uniqueName,
-            updatedAt = System.currentTimeMillis()
-        )
-        writeIndex(metas)
-        return true
+        if (index < 0) {
+            false
+        } else {
+            val base = ScriptNaming.sanitize(newName)
+            if (base.isEmpty()) {
+                false
+            } else {
+                val uniqueName = ScriptNaming.uniqueName(
+                    base,
+                    metas.map { it.name }.toSet(),
+                    exclude = metas[index].name
+                )
+                metas[index] = metas[index].copy(
+                    name = uniqueName,
+                    updatedAt = System.currentTimeMillis()
+                )
+                writeIndex(metas)
+                true
+            }
+        }
     }
 
-    fun delete(id: String): Boolean {
+    fun delete(id: String): Boolean = locked {
         val metas = readIndex().toMutableList()
         val index = metas.indexOfFirst { it.id == id }
-        if (index < 0) return false
-        metas.removeAt(index)
-        File(dir, "$id.js").delete()
-        writeIndex(metas)
-        removeVersionsOf(id)
-        return true
+        if (index < 0) {
+            false
+        } else {
+            metas.removeAt(index)
+            File(dir, "$id.js").delete()
+            writeIndex(metas)
+            removeVersionsOf(id)
+            true
+        }
     }
 
-    fun publishVersion(scriptId: String, note: String): ScriptVersion? {
-        if (find(scriptId) == null) return null
-        val content = read(scriptId) ?: return null
-        val existing = readVersions().filter { it.scriptId == scriptId }
-        val version = (existing.maxOfOrNull { it.version } ?: 0) + 1
-        val id = UUID.randomUUID().toString()
-        val versionDir = File(versionsDir, scriptId).apply { mkdirs() }
-        File(versionDir, "$id.js").writeText(content)
-        val record = ScriptVersion(
-            id = id,
-            scriptId = scriptId,
-            version = version,
-            note = note.trim(),
-            createdAt = System.currentTimeMillis()
-        )
-        writeVersions(readVersions() + record)
-        return record
+    fun publishVersion(scriptId: String, note: String): ScriptVersion? = locked {
+        if (find(scriptId) == null) {
+            null
+        } else {
+            val content = read(scriptId)
+            if (content == null) {
+                null
+            } else {
+                val existing = readVersions().filter { it.scriptId == scriptId }
+                val version = (existing.maxOfOrNull { it.version } ?: 0) + 1
+                val id = UUID.randomUUID().toString()
+                val versionDir = File(versionsDir, scriptId).apply { mkdirs() }
+                writeAtomically(File(versionDir, "$id.js"), content)
+                val record = ScriptVersion(
+                    id = id,
+                    scriptId = scriptId,
+                    version = version,
+                    note = note.trim(),
+                    createdAt = System.currentTimeMillis()
+                )
+                writeVersions(readVersions() + record)
+                record
+            }
+        }
     }
 
     fun versions(scriptId: String): List<ScriptVersion> =
@@ -173,26 +192,40 @@ class ScriptRepository(context: Context) {
         return runCatching { file.readText() }.getOrNull()
     }
 
-    fun restoreVersion(versionId: String): Boolean {
-        val version = readVersions().firstOrNull { it.id == versionId } ?: return false
-        val content = readVersion(versionId) ?: return false
-        val metas = readIndex().toMutableList()
-        val index = metas.indexOfFirst { it.id == version.scriptId }
-        if (index < 0) return false
-        File(dir, "${version.scriptId}.js").writeText(content)
-        metas[index] = metas[index].copy(updatedAt = System.currentTimeMillis())
-        writeIndex(metas)
-        return true
+    fun restoreVersion(versionId: String): Boolean = locked {
+        val version = readVersions().firstOrNull { it.id == versionId }
+        val content = version?.let { readVersion(versionId) }
+        if (version == null || content == null) {
+            false
+        } else {
+            val metas = readIndex().toMutableList()
+            val index = metas.indexOfFirst { it.id == version.scriptId }
+            if (index < 0) {
+                false
+            } else {
+                val current = read(version.scriptId)
+                if (current != null && current != content) {
+                    publishVersion(version.scriptId, "恢复前自动快照")
+                }
+                writeAtomically(File(dir, "${version.scriptId}.js"), content)
+                metas[index] = metas[index].copy(updatedAt = System.currentTimeMillis())
+                writeIndex(metas)
+                true
+            }
+        }
     }
 
-    fun deleteVersion(versionId: String): Boolean {
+    fun deleteVersion(versionId: String): Boolean = locked {
         val versions = readVersions().toMutableList()
         val index = versions.indexOfFirst { it.id == versionId }
-        if (index < 0) return false
-        val version = versions.removeAt(index)
-        File(versionsDir, "${version.scriptId}/${version.id}.js").delete()
-        writeVersions(versions)
-        return true
+        if (index < 0) {
+            false
+        } else {
+            val version = versions.removeAt(index)
+            File(versionsDir, "${version.scriptId}/${version.id}.js").delete()
+            writeVersions(versions)
+            true
+        }
     }
 
     private fun removeVersionsOf(scriptId: String) {
@@ -204,17 +237,23 @@ class ScriptRepository(context: Context) {
         writeVersions(versions.filterNot { it.scriptId == scriptId })
     }
 
-    fun moveToFolder(id: String, folderId: String?): Boolean {
-        if (folderId != null && folders().none { it.id == folderId }) return false
-        val metas = readIndex().toMutableList()
-        val index = metas.indexOfFirst { it.id == id }
-        if (index < 0) return false
-        metas[index] = metas[index].copy(
-            folderId = folderId,
-            updatedAt = System.currentTimeMillis()
-        )
-        writeIndex(metas)
-        return true
+    fun moveToFolder(id: String, folderId: String?): Boolean = locked {
+        if (folderId != null && folders().none { it.id == folderId }) {
+            false
+        } else {
+            val metas = readIndex().toMutableList()
+            val index = metas.indexOfFirst { it.id == id }
+            if (index < 0) {
+                false
+            } else {
+                metas[index] = metas[index].copy(
+                    folderId = folderId,
+                    updatedAt = System.currentTimeMillis()
+                )
+                writeIndex(metas)
+                true
+            }
+        }
     }
 
     fun folders(): List<FolderMeta> = readFolders().sortedBy { it.name.lowercase() }
@@ -225,151 +264,155 @@ class ScriptRepository(context: Context) {
 
     fun count(folderId: String): Int = readIndex().count { it.folderId == folderId }
 
-    fun createFolder(name: String): FolderMeta? {
+    fun createFolder(name: String): FolderMeta? = locked {
         val base = ScriptNaming.sanitize(name)
-        if (base.isEmpty()) return null
-        val folders = readFolders().toMutableList()
-        val uniqueName = ScriptNaming.uniqueName(base, folders.map { it.name }.toSet())
-        val folder = FolderMeta(
-            id = UUID.randomUUID().toString(),
-            name = uniqueName,
-            createdAt = System.currentTimeMillis()
-        )
-        folders += folder
-        writeFolders(folders)
-        return folder
+        if (base.isEmpty()) {
+            null
+        } else {
+            val folders = readFolders().toMutableList()
+            val uniqueName = ScriptNaming.uniqueName(base, folders.map { it.name }.toSet())
+            val folder = FolderMeta(
+                id = UUID.randomUUID().toString(),
+                name = uniqueName,
+                createdAt = System.currentTimeMillis()
+            )
+            folders += folder
+            writeFolders(folders)
+            folder
+        }
     }
 
-    fun renameFolder(id: String, newName: String): Boolean {
+    fun renameFolder(id: String, newName: String): Boolean = locked {
         val base = ScriptNaming.sanitize(newName)
-        if (base.isEmpty()) return false
-        val folders = readFolders().toMutableList()
-        val index = folders.indexOfFirst { it.id == id }
-        if (index < 0) return false
-        val uniqueName = ScriptNaming.uniqueName(
-            base,
-            folders.map { it.name }.toSet(),
-            exclude = folders[index].name
-        )
-        folders[index] = folders[index].copy(name = uniqueName)
-        writeFolders(folders)
-        return true
-    }
-
-    fun deleteFolder(id: String): Boolean {
-        val folders = readFolders().toMutableList()
-        if (folders.none { it.id == id }) return false
-        folders.removeAll { it.id == id }
-        val now = System.currentTimeMillis()
-        val metas = readIndex().map {
-            if (it.folderId == id) {
-                it.copy(folderId = null, updatedAt = now)
+        if (base.isEmpty()) {
+            false
+        } else {
+            val folders = readFolders().toMutableList()
+            val index = folders.indexOfFirst { it.id == id }
+            if (index < 0) {
+                false
             } else {
-                it
+                val uniqueName = ScriptNaming.uniqueName(
+                    base,
+                    folders.map { it.name }.toSet(),
+                    exclude = folders[index].name
+                )
+                folders[index] = folders[index].copy(name = uniqueName)
+                writeFolders(folders)
+                true
             }
         }
-        writeIndex(metas)
-        writeFolders(folders)
-        return true
     }
 
-    private fun readIndex(): MutableList<ScriptMeta> {
-        if (!indexFile.exists()) return mutableListOf()
-        return runCatching {
-            val array = JSONArray(indexFile.readText())
-            MutableList(array.length()) { index ->
-                val obj = array.getJSONObject(index)
-                ScriptMeta(
-                    id = obj.getString("id"),
-                    name = obj.getString("name"),
-                    createdAt = obj.optLong("createdAt"),
-                    updatedAt = obj.optLong("updatedAt"),
-                    folderId = obj.optString("folderId").takeIf { it.isNotBlank() }
-                )
+    fun deleteFolder(id: String): Boolean = locked {
+        val folders = readFolders().toMutableList()
+        if (folders.none { it.id == id }) {
+            false
+        } else {
+            folders.removeAll { it.id == id }
+            val now = System.currentTimeMillis()
+            val metas = readIndex().map {
+                if (it.folderId == id) {
+                    it.copy(folderId = null, updatedAt = now)
+                } else {
+                    it
+                }
             }
-        }.getOrElse { mutableListOf() }
+            writeIndex(metas)
+            writeFolders(folders)
+            true
+        }
+    }
+
+    private fun readIndex(): MutableList<ScriptMeta> = locked {
+        cachedIndex?.let { return@locked it.toMutableList() }
+        val entries = readEntries(
+            indexFile,
+            "脚本索引",
+            ScriptIndexCodec::parseScripts,
+            ScriptIndexCodec::encodeScripts
+        )
+        cachedIndex = entries
+        entries.toMutableList()
     }
 
     private fun writeIndex(metas: List<ScriptMeta>) {
-        val array = JSONArray()
-        metas.forEach { meta ->
-            array.put(
-                JSONObject().apply {
-                    put("id", meta.id)
-                    put("name", meta.name)
-                    put("createdAt", meta.createdAt)
-                    put("updatedAt", meta.updatedAt)
-                    meta.folderId?.let { put("folderId", it) }
-                }
-            )
-        }
-        writeAtomically(indexFile, array.toString())
+        writeAtomically(indexFile, ScriptIndexCodec.encodeScripts(metas))
+        cachedIndex = metas.toList()
     }
 
-    private fun readFolders(): MutableList<FolderMeta> {
-        if (!foldersFile.exists()) return mutableListOf()
-        return runCatching {
-            val array = JSONArray(foldersFile.readText())
-            MutableList(array.length()) { index ->
-                val obj = array.getJSONObject(index)
-                FolderMeta(
-                    id = obj.getString("id"),
-                    name = obj.getString("name"),
-                    createdAt = obj.optLong("createdAt")
-                )
-            }
-        }.getOrElse { mutableListOf() }
+    private fun readFolders(): MutableList<FolderMeta> = locked {
+        cachedFolders?.let { return@locked it.toMutableList() }
+        val entries = readEntries(
+            foldersFile,
+            "文件夹索引",
+            ScriptIndexCodec::parseFolders,
+            ScriptIndexCodec::encodeFolders
+        )
+        cachedFolders = entries
+        entries.toMutableList()
     }
 
     private fun writeFolders(folders: List<FolderMeta>) {
-        val array = JSONArray()
-        folders.forEach { folder ->
-            array.put(
-                JSONObject().apply {
-                    put("id", folder.id)
-                    put("name", folder.name)
-                    put("createdAt", folder.createdAt)
-                }
-            )
-        }
-        writeAtomically(foldersFile, array.toString())
+        writeAtomically(foldersFile, ScriptIndexCodec.encodeFolders(folders))
+        cachedFolders = folders.toList()
     }
 
-    private fun readVersions(): MutableList<ScriptVersion> {
-        if (!versionsFile.exists()) return mutableListOf()
-        return runCatching {
-            val array = JSONArray(versionsFile.readText())
-            MutableList(array.length()) { index ->
-                val obj = array.getJSONObject(index)
-                ScriptVersion(
-                    id = obj.getString("id"),
-                    scriptId = obj.getString("scriptId"),
-                    version = obj.optInt("version"),
-                    note = obj.optString("note"),
-                    createdAt = obj.optLong("createdAt")
-                )
-            }
-        }.getOrElse { mutableListOf() }
+    private fun readVersions(): MutableList<ScriptVersion> = locked {
+        cachedVersions?.let { return@locked it.toMutableList() }
+        val entries = readEntries(
+            versionsFile,
+            "版本索引",
+            ScriptIndexCodec::parseVersions,
+            ScriptIndexCodec::encodeVersions
+        )
+        cachedVersions = entries
+        entries.toMutableList()
     }
 
     private fun writeVersions(versions: List<ScriptVersion>) {
-        val array = JSONArray()
-        versions.forEach { version ->
-            array.put(
-                JSONObject().apply {
-                    put("id", version.id)
-                    put("scriptId", version.scriptId)
-                    put("version", version.version)
-                    put("note", version.note)
-                    put("createdAt", version.createdAt)
-                }
-            )
+        writeAtomically(versionsFile, ScriptIndexCodec.encodeVersions(versions))
+        cachedVersions = versions.toList()
+    }
+
+    private fun <T> readEntries(
+        file: File,
+        label: String,
+        parser: (String) -> IndexParse<T>,
+        encoder: (List<T>) -> String
+    ): List<T> {
+        if (!file.exists()) return emptyList()
+        val text = runCatching { file.readText() }.getOrElse { return emptyList() }
+        val parsed = parser(text)
+        if (!parsed.corrupt && parsed.skipped == 0) return parsed.entries
+
+        val recovered = if (parsed.corrupt) emptyList() else parsed.entries
+        val backup = backupCorrupt(file)
+        runCatching { writeAtomically(file, encoder(recovered)) }
+
+        val detail = buildString {
+            append("$label 文件损坏")
+            backup?.let { append("，原文件已备份为 ${it.name}") }
+            append("。")
+            if (recovered.isNotEmpty()) append("已恢复 ${recovered.size} 条记录。")
+            if (parsed.skipped > 0) append("跳过 ${parsed.skipped} 条损坏记录。")
         }
-        writeAtomically(versionsFile, array.toString())
+        RepositoryHealth.report(detail)
+        return recovered
+    }
+
+    private fun backupCorrupt(file: File): File? {
+        if (!file.exists()) return null
+        val backup = File(file.parentFile, "${file.name}.corrupt-${System.currentTimeMillis()}")
+        return runCatching {
+            file.copyTo(backup, overwrite = false)
+            backup
+        }.getOrNull()
     }
 
     private fun writeAtomically(target: File, text: String) {
-        val temp = File(dir, "${target.name}.tmp")
+        val parent = target.parentFile ?: dir
+        val temp = File(parent, "${target.name}.tmp")
         temp.writeText(text)
         if (!temp.renameTo(target)) {
             target.writeText(text)
@@ -377,7 +420,22 @@ class ScriptRepository(context: Context) {
         }
     }
 
+    private inline fun <T> locked(block: () -> T): T = synchronized(ioLock) { block() }
+
     companion object {
+        private val ioLock = Any()
+        private var cachedIndex: List<ScriptMeta>? = null
+        private var cachedFolders: List<FolderMeta>? = null
+        private var cachedVersions: List<ScriptVersion>? = null
+
+        fun clearCache() {
+            synchronized(ioLock) {
+                cachedIndex = null
+                cachedFolders = null
+                cachedVersions = null
+            }
+        }
+
         val DEFAULT_SCRIPT = """
             // 示例：打印当前界面节点树
             toast("MicroAuto 已运行");

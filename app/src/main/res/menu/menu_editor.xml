@@ -1,19 +1,41 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <item
         android:id="@+id/action_save"
         android:icon="@drawable/ic_check"
-        android:title="保存"
-        app:showAsAction="always" />
+        android:title="@string/action_save"
+        app:showAsAction="always"
+        tools:ignore="AlwaysShowAction" />
+
+    <item
+        android:id="@+id/action_undo"
+        android:icon="@drawable/ic_undo"
+        android:title="@string/action_undo"
+        app:showAsAction="always"
+        tools:ignore="AlwaysShowAction" />
+
+    <item
+        android:id="@+id/action_redo"
+        android:icon="@drawable/ic_redo"
+        android:title="@string/action_redo"
+        app:showAsAction="always"
+        tools:ignore="AlwaysShowAction" />
+
+    <item
+        android:id="@+id/action_find_replace"
+        android:icon="@drawable/ic_find_replace"
+        android:title="@string/action_find_replace"
+        app:showAsAction="never" />
 
     <item
         android:id="@+id/action_publish"
-        android:title="发布版本"
+        android:title="@string/action_publish"
         app:showAsAction="never" />
 
     <item
         android:id="@+id/action_versions"
-        android:title="版本历史"
+        android:title="@string/action_versions"
         app:showAsAction="never" />
 </menu>

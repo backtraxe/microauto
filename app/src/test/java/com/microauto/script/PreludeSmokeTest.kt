@@ -187,7 +187,7 @@ class PreludeSmokeTest {
         val rhino = Context.enter()
         try {
             rhino.optimizationLevel = -1
-            val scope = rhino.initStandardObjects()
+            val scope = rhino.initSafeStandardObjects()
             ScriptableObject.putProperty(scope, "native", Context.javaToJS(fake, scope))
             rhino.evaluateString(scope, prelude(), "prelude.js", 1, null)
             rhino.evaluateString(scope, script, "test.js", 1, null)

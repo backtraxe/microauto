@@ -43,4 +43,23 @@ class JsTokenizerTest {
     fun `empty text has no tokens`() {
         assertEquals(emptyList<JsToken>(), JsTokenizer.tokenize(""))
     }
+
+    @Test
+    fun `highlights names exposed by the prelude`() {
+        val source = "text('x').findOne(1000); scrollForward(); launchApp('p');"
+        val builtins = JsTokenizer.tokenize(source)
+            .filter { it.type == JsTokenType.BUILTIN }
+            .map { it.text(source) }
+
+        assertTrue(builtins.containsAll(listOf("text", "findOne", "scrollForward", "launchApp")))
+    }
+
+    @Test
+    fun `does not highlight names that are not part of the prelude`() {
+        val source = "find(); open(); tap();"
+        val builtins = JsTokenizer.tokenize(source)
+            .filter { it.type == JsTokenType.BUILTIN }
+
+        assertTrue(builtins.isEmpty())
+    }
 }

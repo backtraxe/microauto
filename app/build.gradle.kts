@@ -13,10 +13,23 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+fun gitOutput(vararg args: String): String? = runCatching {
+    providers.exec {
+        commandLine("git", *args)
+        workingDir = rootDir
+    }.standardOutput.asText.get().trim()
+}.getOrNull()?.takeIf { it.isNotBlank() }
+
+val latestTag = gitOutput("describe", "--tags", "--abbrev=0")
+val exactTag = gitOutput("describe", "--tags", "--exact-match")
+val commitCount = gitOutput("rev-list", "--count", "HEAD")?.toIntOrNull() ?: 1
+val baseVersionName = latestTag?.removePrefix("v")?.takeIf { it.isNotBlank() } ?: "0.0.0"
+val autoVersionName = if (exactTag != null) baseVersionName else "$baseVersionName-dev"
+
 android {
     namespace = "com.microauto"
-    compileSdk = 35
-    buildToolsVersion = "35.0.0"
+    compileSdk = 36
+    buildToolsVersion = "36.0.0"
 
     signingConfigs {
         getByName("debug") {
@@ -46,9 +59,9 @@ android {
     defaultConfig {
         applicationId = "com.microauto"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 5
-        versionName = "0.3.2"
+        targetSdk = 36
+        versionCode = commitCount.coerceAtLeast(1)
+        versionName = autoVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -87,20 +100,22 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.activity:activity-ktx:1.9.3")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.recyclerview:recyclerview:1.3.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // 1.19.1 requires compileSdk 37 / AGP 9.1; keep the latest 36-compatible release.
+    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.activity:activity-ktx:1.13.0")
+    implementation("androidx.appcompat:appcompat:1.8.0")
+    implementation("com.google.android.material:material:1.14.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+    implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.mozilla:rhino:1.7.15")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test:rules:1.6.1")
-    androidTestImplementation("androidx.test:core-ktx:1.6.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test:rules:1.7.0")
+    androidTestImplementation("androidx.test:core-ktx:1.7.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }

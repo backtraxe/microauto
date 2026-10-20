@@ -3,17 +3,20 @@ package com.microauto.script
 import android.content.Context
 import com.microauto.accessibility.AutomationService
 import com.microauto.accessibility.ScreenState
+import com.microauto.core.DateFormats
 import org.mozilla.javascript.RhinoException
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 object ScriptRunner {
+    private const val MAX_RUN_MILLIS = 10 * 60 * 1000L
+
     @Volatile
     private var currentThread: Thread? = null
 
     @Volatile
     private var running = false
+
+    @Volatile
+    private var cancelRequested = false
 
     fun run(context: Context, script: String): Boolean {
         if (running) {
@@ -21,6 +24,8 @@ object ScriptRunner {
             return false
         }
         running = true
+        cancelRequested = false
+        Thread.interrupted()
         currentThread = Thread.currentThread()
         RunState.setRunning(true)
         val startedAt = System.currentTimeMillis()
@@ -47,12 +52,14 @@ object ScriptRunner {
                 RunLog.append("[错误] 屏幕已锁定，请先解锁")
                 return false
             }
+            ScriptExecutionGuard.install(startedAt + MAX_RUN_MILLIS) { cancelRequested }
             ScriptEngine.execute(context, service, script)
             RunLog.append("✔ ${timestamp()} 执行结束（${System.currentTimeMillis() - startedAt} ms）")
             return true
         } catch (error: Throwable) {
             return handleError(error)
         } finally {
+            ScriptExecutionGuard.clear()
             running = false
             currentThread = null
             RunState.setRunning(false)
@@ -60,6 +67,7 @@ object ScriptRunner {
     }
 
     fun cancel() {
+        cancelRequested = true
         currentThread?.interrupt()
     }
 
@@ -70,6 +78,11 @@ object ScriptRunner {
         if (exit != null) {
             RunLog.append("■ ${timestamp()} 脚本主动退出")
             return true
+        }
+        val cancelled = findCause(error, ScriptCancelledException::class.java)
+        if (cancelled != null) {
+            RunLog.append("■ ${timestamp()} 已停止")
+            return false
         }
         val timeout = findCause(error, ScriptTimeoutException::class.java)
         if (timeout != null) {
@@ -100,6 +113,5 @@ object ScriptRunner {
         return null
     }
 
-    private fun timestamp(): String =
-        SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+    private fun timestamp(): String = DateFormats.format(System.currentTimeMillis())
 }

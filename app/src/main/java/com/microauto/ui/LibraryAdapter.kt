@@ -3,6 +3,7 @@ package com.microauto.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.microauto.databinding.ItemFolderBinding
 import com.microauto.databinding.ItemScriptBinding
@@ -26,9 +27,12 @@ class LibraryAdapter(
     private var items: List<LibraryItem> = emptyList()
 
     fun submit(list: List<LibraryItem>) {
+        val diff = DiffUtil.calculateDiff(DiffCallback(items, list))
         items = list
-        notifyDataSetChanged()
+        diff.dispatchUpdatesTo(this)
     }
+
+    override fun getItemCount(): Int = items.size
 
     override fun getItemViewType(position: Int): Int =
         if (items[position] is LibraryItem.Folder) TYPE_FOLDER else TYPE_SCRIPT
@@ -49,14 +53,15 @@ class LibraryAdapter(
         }
     }
 
-    override fun getItemCount(): Int = items.size
-
     private inner class FolderHolder(
         private val binding: ItemFolderBinding
     ) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: LibraryItem.Folder) {
             binding.folderName.text = item.meta.name
-            binding.folderCount.text = "${item.count} 个脚本"
+            binding.folderCount.text = binding.root.context.getString(
+                com.microauto.R.string.folder_script_count,
+                item.count
+            )
             binding.root.setOnClickListener { onFolderClick(item.meta) }
             binding.folderMore.setOnClickListener { onFolderMenu(item.meta, it) }
         }
@@ -76,6 +81,32 @@ class LibraryAdapter(
             binding.root.setOnClickListener { onScriptClick(meta) }
             binding.moreButton.setOnClickListener { onScriptMenu(meta, it) }
         }
+    }
+
+    private class DiffCallback(
+        private val oldItems: List<LibraryItem>,
+        private val newItems: List<LibraryItem>
+    ) : DiffUtil.Callback() {
+        override fun getOldListSize(): Int = oldItems.size
+
+        override fun getNewListSize(): Int = newItems.size
+
+        override fun areItemsTheSame(oldPosition: Int, newPosition: Int): Boolean {
+            val oldItem = oldItems[oldPosition]
+            val newItem = newItems[newPosition]
+            return when {
+                oldItem is LibraryItem.Folder && newItem is LibraryItem.Folder ->
+                    oldItem.meta.id == newItem.meta.id
+
+                oldItem is LibraryItem.Script && newItem is LibraryItem.Script ->
+                    oldItem.meta.id == newItem.meta.id
+
+                else -> false
+            }
+        }
+
+        override fun areContentsTheSame(oldPosition: Int, newPosition: Int): Boolean =
+            oldItems[oldPosition] == newItems[newPosition]
     }
 
     private companion object {

@@ -2,4 +2,86 @@
     <string name="app_name">MicroAuto</string>
     <string name="accessibility_service_label">MicroAuto 自动化服务</string>
     <string name="accessibility_service_description">用于执行用户脚本的界面自动化服务。开启后可查找控件、点击、滑动和启动应用。</string>
+
+    <string name="action_run">运行</string>
+    <string name="action_stop">停止</string>
+    <string name="action_dump">看界面</string>
+    <string name="action_save">保存</string>
+    <string name="action_undo">撤销</string>
+    <string name="action_redo">重做</string>
+    <string name="action_find_replace">查找替换</string>
+    <string name="action_publish">发布版本</string>
+    <string name="action_versions">版本历史</string>
+    <string name="action_new_script">新建脚本</string>
+    <string name="action_import_script">导入脚本</string>
+    <string name="action_new_folder">新建文件夹</string>
+    <string name="action_set">设置</string>
+    <string name="action_restore_builtins">恢复内置示例</string>
+    <string name="action_backup">备份全部脚本</string>
+    <string name="action_restore">恢复备份</string>
+
+    <string name="menu_accessibility">无障碍</string>
+    <string name="menu_exact_alarm">精确闹钟</string>
+    <string name="menu_battery">省电</string>
+    <string name="menu_schedule">定时</string>
+
+    <string name="tab_scripts">脚本</string>
+    <string name="tab_create">新建</string>
+    <string name="tab_tutorial">教程</string>
+
+    <string name="editor_hint">在这里编写 JavaScript</string>
+    <string name="schedule_title">每天定时</string>
+    <string name="schedule_not_enabled">未启用</string>
+    <string name="run_log_title">运行日志（最近一次）</string>
+
+    <string name="search_scripts_hint">搜索脚本</string>
+    <string name="empty_no_scripts">还没有脚本</string>
+    <string name="empty_no_scripts_hint">新建一个脚本，或从文件导入 .js / .txt</string>
+
+    <string name="empty_no_versions">还没有发布版本</string>
+    <string name="empty_no_versions_hint">在编辑页菜单里点「发布版本」，给当前内容打一个快照。</string>
+
+    <string name="rename_script_hint">脚本名称</string>
+    <string name="version_note_hint">版本备注（可选）</string>
+
+    <string name="folder_label">文件夹</string>
+    <string name="content_desc_folder_actions">文件夹操作</string>
+    <string name="content_desc_more_actions">更多操作</string>
+    <string name="content_desc_version_actions">版本操作</string>
+    <string name="folder_script_count">%1$d 个脚本</string>
+    <string name="version_count">共 %1$d 个版本</string>
+    <string name="version_label">v%1$d</string>
+
+    <string name="find_hint">查找</string>
+    <string name="replace_hint">替换为</string>
+    <string name="find_case_sensitive">区分大小写</string>
+    <string name="find_previous">上一个</string>
+    <string name="find_next">下一个</string>
+    <string name="find_replace">替换</string>
+    <string name="find_replace_all">全部替换</string>
+
+    <string name="schedule_description">到点后自动运行当前脚本。每个脚本可以单独设置定时。</string>
+    <string name="schedule_time_hint">时间（HH:mm）</string>
+    <string name="schedule_enable">启用每天定时</string>
+    <string name="schedule_save">保存定时</string>
+
+    <string name="tutorial_intro">MicroAuto 用 JavaScript 调用 Android 无障碍服务，实现自动点击、滑动、读取界面和定时执行。</string>
+    <string name="tutorial_quick_start">快速开始</string>
+    <string name="tutorial_quick_start_body">1. 打开系统设置 → 无障碍 → 已下载的服务 → MicroAuto，开启服务。\n2. 回到首页，点底部中间的「新建」，选择新建脚本或新建文件夹，或直接打开内置示例。\n3. 在编辑器里点“运行”。首次运行会请求通知权限，用于前台服务通知。</string>
+    <string name="tutorial_first_script">第一个脚本</string>
+    <string name="tutorial_first_script_body">用 text()、id()、desc() 等选择器找到控件，再调用 click()、setText()、scrollForward()。</string>
+    <string name="tutorial_code_snippet">var button = text(&quot;签到&quot;).findOne(5000);\nif (button) {\n  button.click();\n  toast(&quot;签到完成&quot;);\n} else {\n  log(&quot;没有找到按钮&quot;);\n}</string>
+    <string name="tutorial_schedule_title">定时任务</string>
+    <string name="tutorial_schedule_body">编辑页 → 每天定时 → 设置 → 输入 HH:mm → 启用每天定时 → 保存定时。\n到点后会用前台服务运行当前脚本。精确闹钟不可用时会自动降级；部分厂商需要在电池设置里允许后台运行。</string>
+    <string name="tutorial_folder_body">首页右上角菜单 → 新建文件夹，或点底部中间的「新建」。\n脚本菜单 → 移动到… 可以把脚本放进文件夹。\n删除文件夹时，里面的脚本会移回根目录，不会丢失。\n目前支持一级文件夹。</string>
+    <string name="tutorial_versions_title">版本管理</string>
+    <string name="tutorial_versions_body">编辑页右上角菜单 → 发布版本，给当前内容打一个快照并写备注。\n菜单 → 版本历史，可查看、恢复或删除历史版本；恢复会覆盖当前内容。\n首页脚本菜单也可以直接打开版本历史。</string>
+    <string name="tutorial_search_title">搜索</string>
+    <string name="tutorial_search_body">首页顶部的搜索框会按名称过滤所有脚本，包括文件夹内的脚本；清空后回到当前文件夹视图。</string>
+    <string name="tutorial_import_export_title">导入与导出</string>
+    <string name="tutorial_import_export_body">首页菜单或空状态可以导入 .js / .txt，导入的脚本会进入当前文件夹。\n脚本菜单 → 导出，会通过系统文件选择器保存为 .js。</string>
+    <string name="tutorial_limits_title">权限与限制</string>
+    <string name="tutorial_limits_body">• 非 root，必须开启无障碍服务。\n• 锁屏、息屏时无法操作界面。\n• 部分应用会检测或拒绝无障碍操作。\n• 定时触发受 Doze 和厂商保活策略影响。\n• 首版没有 OCR、找图、悬浮窗和可视化选择器。</string>
+    <string name="tutorial_builtins_title">内置示例</string>
+    <string name="tutorial_builtins_body">首次启动会创建 5 个示例脚本。删除后可以在首页菜单或本页底部恢复。\n示例包括：节点树、按文本点击、滑动与等待、定时签到模板、常用工具函数。</string>
 </resources>

@@ -75,4 +75,19 @@ class ScriptNamingTest {
     fun replacesNewlinesInSanitize() {
         assertEquals("签到 脚本", ScriptNaming.sanitize("  签到\n脚本  "))
     }
+
+    @Test
+    fun replacesFilesystemForbiddenCharacters() {
+        assertEquals(
+            "a_b_c_d_e_f_g_h_i",
+            ScriptNaming.sanitize("a/b:c*d?e\"f<g>h|i")
+        )
+    }
+
+    @Test
+    fun rejectsDotOnlyNamesAndTrailingDots() {
+        assertEquals("", ScriptNaming.sanitize("."))
+        assertEquals("", ScriptNaming.sanitize(".."))
+        assertEquals("name", ScriptNaming.sanitize("name."))
+    }
 }

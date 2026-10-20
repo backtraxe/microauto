@@ -11,7 +11,7 @@
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="脚本名称">
+        android:hint="@string/rename_script_hint">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/renameInput"

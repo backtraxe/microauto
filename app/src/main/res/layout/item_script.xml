@@ -49,7 +49,7 @@
             style="@style/Widget.Material3.Button.IconButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
-            android:contentDescription="更多操作"
+            android:contentDescription="@string/content_desc_more_actions"
             app:icon="@drawable/ic_more_vert"
             app:iconTint="?attr/colorOnSurfaceVariant" />
     </LinearLayout>

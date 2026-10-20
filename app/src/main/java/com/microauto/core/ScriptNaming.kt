@@ -2,13 +2,20 @@ package com.microauto.core
 
 object ScriptNaming {
     private val knownExtensions = listOf(".js", ".mjs", ".txt", ".script")
+    private val invalidNameChars = Regex("""[\\/:*?"<>|\u0000-\u001F]""")
     private const val MAX_NAME_LENGTH = 60
 
-    fun sanitize(raw: String): String =
-        raw.trim()
+    fun sanitize(raw: String): String {
+        val cleaned = raw.trim()
             .replace('\n', ' ')
             .replace('\r', ' ')
+            .replace(invalidNameChars, "_")
+            .trim()
+            .trimEnd('.')
             .take(MAX_NAME_LENGTH)
+            .trimEnd('.', ' ')
+        return if (cleaned == "." || cleaned == "..") "" else cleaned
+    }
 
     fun fromFileName(fileName: String): String {
         val baseName = fileName.substringAfterLast('/').substringAfterLast('\\').trim()
