@@ -14,7 +14,7 @@
 - 应用与系统：`launchApp`、`currentPackage`、`waitForPackage`、`back`、`home`、`recents`
 - 脚本工具：`sleep`、`toast`、`log`、`exit`、`dump`
 - 多脚本文件管理：新建、导入、重命名、删除，每个脚本独立文件
-- 每个脚本独立编辑，支持保存、运行、停止和日志
+- 每个脚本独立编辑，支持行号、等宽字体、JS 语法高亮、常用符号栏、保存、运行、停止和日志
 - 每天固定时间定时执行（同一时间绑定一个脚本，精确闹钟不可用时自动降级）
 - 前台服务运行、开机恢复定时
 - Material 3 界面：动态取色、edge-to-edge、脚本卡片、状态 chips、FAB、定时底部 sheet
@@ -32,13 +32,13 @@ APK 输出：`app/build/outputs/apk/debug/MicroAuto-<版本号>.apk`，例如 `M
 
 ## 测试
 
-JVM 单元测试（37 个）：
+JVM 单元测试（41 个）：
 
 ```bash
 ./gradlew :app:testDebugUnitTest
 ```
 
-仪器化测试（13 个，需要模拟器或真机）：
+仪器化测试（15 个，需要模拟器或真机）：
 
 ```bash
 ./gradlew :app:connectedDebugAndroidTest

@@ -45,8 +45,27 @@ class EditorActivityTest {
             onView(withId(R.id.toolbar)).check(matches(isDisplayed()))
             onView(withText("UI 测试脚本")).check(matches(isDisplayed()))
             onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
+            onView(withId(R.id.lineNumbers)).check(matches(isDisplayed()))
+            onView(withId(R.id.symbolBar)).check(matches(isDisplayed()))
             onView(withId(R.id.btnSchedule)).perform(click())
             onView(withId(R.id.scheduleTime)).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun lineNumbersFollowContent() {
+        launch().use {
+            onView(withId(R.id.scriptEditor)).perform(replaceText("a\nb\nc"))
+            onView(withId(R.id.lineNumbers)).check(matches(withText("1\n2\n3")))
+        }
+    }
+
+    @Test
+    fun symbolBarInsertsPair() {
+        launch().use {
+            onView(withId(R.id.scriptEditor)).perform(replaceText(""))
+            onView(withText("{")).perform(click())
+            onView(withId(R.id.scriptEditor)).check(matches(withText("{}")))
         }
     }
 
