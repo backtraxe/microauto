@@ -23,6 +23,8 @@ class ScriptRepository(context: Context) {
         dir.mkdirs()
     }
 
+    fun indexExists(): Boolean = indexFile.exists()
+
     fun ensureInitialized(): List<ScriptMeta> {
         if (indexFile.exists()) return list()
         val legacy = File(appContext.filesDir, "script.js")

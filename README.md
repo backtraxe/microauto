@@ -30,12 +30,33 @@
 
 APK 输出：`app/build/outputs/apk/debug/MicroAuto-<版本号>.apk`，例如 `MicroAuto-0.3.1.apk`。
 
+## 测试
+
+JVM 单元测试（37 个）：
+
+```bash
+./gradlew :app:testDebugUnitTest
+```
+
+仪器化测试（需要模拟器或真机）：
+
+```bash
+./gradlew :app:connectedDebugAndroidTest
+```
+
+macOS Apple Silicon 本地一键模拟器测试（安装 API 35 arm64 镜像、创建 AVD、启动、跑测试）：
+
+```bash
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+./scripts/run-emulator-tests.sh
+```
+
 ## CI/CD
 
 GitHub Actions 配置在 `.github/workflows/android.yml`：
 
-- push 到 `main` 或提 PR：自动运行单元测试、Android Lint、构建 debug APK，APK 作为 Actions artifact 上传。
-- push `v*` 标签：构建通过后自动创建 GitHub Release，并附带 `MicroAuto-<版本号>.apk`。
+- push 到 `main` 或提 PR：自动运行单元测试、Android Lint、构建 debug APK，并在 API 35 模拟器上运行仪器化测试；APK 作为 Actions artifact 上传。
+- push `v*` 标签：`build` 和 `ui-test` 都通过后自动创建 GitHub Release，并附带 `MicroAuto-<版本号>.apk`。
 
 发布一个版本：
 

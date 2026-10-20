@@ -499,7 +499,21 @@ app/src/main/assets/prelude.js   Auto.js 风格 API
    ./gradlew :app:testDebugUnitTest :app:assembleDebug
    ```
 
-提交后 GitHub Actions 会自动跑测试、Lint 和构建。
+提交后 GitHub Actions 会自动跑测试、Lint、构建，并在 API 35 模拟器上运行仪器化测试。
+
+本地测试：
+
+```bash
+# JVM 单元测试
+./gradlew :app:testDebugUnitTest
+
+# 仪器化测试（需要模拟器或真机）
+./gradlew :app:connectedDebugAndroidTest
+
+# macOS Apple Silicon 一键模拟器测试
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+./scripts/run-emulator-tests.sh
+```
 
 ## 14. API 速查
 

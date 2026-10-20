@@ -77,4 +77,68 @@ class SelectorMatcherTest {
 
         assertEquals(shallow, SelectorMatcher.findFirst(root, Selector(text = "签到")))
     }
+
+    @Test
+    fun matchesIdAndDesc() {
+        val target = FakeNode(viewId = "com.demo:id/sign", desc = "签到按钮")
+        val root = FakeNode(
+            children = listOf(FakeNode(viewId = "com.demo:id/other"), target)
+        )
+
+        val selector = Selector(id = "com.demo:id/sign", desc = "签到按钮")
+
+        assertEquals(target, SelectorMatcher.findFirst(root, selector))
+    }
+
+    @Test
+    fun matchesStateConditions() {
+        val target = FakeNode(clickable = true, enabled = false, selected = true)
+        val root = FakeNode(
+            children = listOf(FakeNode(clickable = true), target)
+        )
+
+        val selector = Selector(clickable = true, enabled = false, selected = true)
+
+        assertEquals(target, SelectorMatcher.findFirst(root, selector))
+    }
+
+    @Test
+    fun matchesTextContains() {
+        val target = FakeNode(text = "每日签到领积分")
+        val root = FakeNode(children = listOf(target))
+
+        assertEquals(
+            target,
+            SelectorMatcher.findFirst(root, Selector(textContains = "签到"))
+        )
+    }
+
+    @Test
+    fun findAllRespectsLimit() {
+        val root = FakeNode(children = (1..5).map { FakeNode(text = "签到") })
+
+        assertEquals(
+            3,
+            SelectorMatcher.findAll(root, Selector(text = "签到"), limit = 3).size
+        )
+    }
+
+    @Test
+    fun findFirstRespectsMaxNodes() {
+        val target = FakeNode(text = "签到")
+        val root = FakeNode(
+            children = listOf(
+                FakeNode(children = listOf(FakeNode(children = listOf(target))))
+            )
+        )
+
+        assertNull(SelectorMatcher.findFirst(root, Selector(text = "签到"), maxNodes = 2))
+    }
+
+    @Test
+    fun emptySelectorMatchesRoot() {
+        val root = FakeNode(text = "root")
+
+        assertEquals(root, SelectorMatcher.findFirst(root, Selector()))
+    }
 }
