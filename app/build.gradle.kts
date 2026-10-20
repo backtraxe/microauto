@@ -1,12 +1,47 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+}
+
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) {
+        FileInputStream(file).use { load(it) }
+    }
 }
 
 android {
     namespace = "com.microauto"
     compileSdk = 35
     buildToolsVersion = "35.0.0"
+
+    signingConfigs {
+        getByName("debug") {
+            storeFile = rootProject.file("signing/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+        create("release") {
+            val storePath = System.getenv("RELEASE_KEYSTORE_PATH")
+                ?: keystoreProperties.getProperty("storeFile")
+            if (!storePath.isNullOrBlank()) {
+                val store = file(storePath)
+                if (store.exists()) {
+                    storeFile = store
+                    storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                        ?: keystoreProperties.getProperty("storePassword")
+                    keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                        ?: keystoreProperties.getProperty("keyAlias")
+                    keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+                        ?: keystoreProperties.getProperty("keyPassword")
+                }
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.microauto"
@@ -20,6 +55,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
+                ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

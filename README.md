@@ -71,7 +71,26 @@ git tag v0.3.1
 git push origin v0.3.1
 ```
 
-当前 Release 附件是 debug 签名 APK，可直接安装；如果需要正式签名，需要在仓库 Secrets 中配置 keystore 并补充 signingConfig。
+## 签名
+
+- **Debug**：仓库内固定 `signing/debug.keystore`（alias `androiddebugkey`，密码 `android`）。本地与 CI 的 debug APK 签名一致，可直接覆盖安装。
+- **Release**：`~/.microauto-signing/microauto-release.jks`，本地通过根目录 `keystore.properties` 引用（已 gitignore）。
+- **CI**：通过 GitHub Secrets 注入 `RELEASE_KEYSTORE_BASE64`、`RELEASE_KEYSTORE_PASSWORD`、`RELEASE_KEY_ALIAS`、`RELEASE_KEY_PASSWORD`；打 `v*` tag 时构建并校验 release 签名，再创建 Release。
+- **务必备份** keystore 与密码；丢失后无法对已发布应用做覆盖升级。
+
+本地构建 release APK：
+
+```bash
+cp keystore.properties.example keystore.properties  # 填入实际路径和密码
+./gradlew :app:assembleRelease
+```
+
+校验签名：
+
+```bash
+$ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs \
+  app/build/outputs/apk/release/MicroAuto-*.apk
+```
 
 ## 使用
 

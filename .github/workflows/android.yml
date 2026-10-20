@@ -6,6 +6,7 @@ on:
     tags: ['v*']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -41,14 +42,44 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Test, lint and build
-        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon -Pandroid.builder.sdkDownload=false
+      - name: Decode release keystore
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 secret is not set"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/microauto-release.jks"
 
-      - name: Upload APK
+      - name: Test, lint and build
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/microauto-release.jks
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon -Pandroid.builder.sdkDownload=false
+          if [[ "$GITHUB_REF" == refs/tags/v* || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            ./gradlew :app:assembleRelease --no-daemon -Pandroid.builder.sdkDownload=false
+            APK=$(ls app/build/outputs/apk/release/MicroAuto-*.apk)
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | grep -q "CN=MicroAuto"
+          fi
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: microauto-debug-apk
           path: app/build/outputs/apk/debug/MicroAuto-*.apk
+          if-no-files-found: error
+
+      - name: Upload release APK
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: microauto-release-apk
+          path: app/build/outputs/apk/release/MicroAuto-*.apk
           if-no-files-found: error
 
   ui-test:
@@ -123,7 +154,7 @@ jobs:
       - name: Download APK
         uses: actions/download-artifact@v4
         with:
-          name: microauto-debug-apk
+          name: microauto-release-apk
           path: dist
 
       - name: Create GitHub Release
