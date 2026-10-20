@@ -7,6 +7,7 @@ import com.microauto.TestData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -26,13 +27,13 @@ class ScriptRepositoryTest {
     }
 
     @Test
-    fun createsSampleOnFirstRun() {
+    fun createsBuiltinsOnFirstRun() {
         val scripts = repository.ensureInitialized()
 
-        assertEquals(1, scripts.size)
-        assertEquals("示例", scripts[0].name)
-        assertNotNull(repository.read(scripts[0].id))
-        assertTrue(repository.read(scripts[0].id)!!.contains("toast"))
+        assertEquals(BuiltinScripts.all.size, scripts.size)
+        val sample = scripts.first { it.name == "示例：节点树" }
+        assertNotNull(repository.read(sample.id))
+        assertTrue(repository.read(sample.id)!!.contains("toast"))
     }
 
     @Test
@@ -42,10 +43,10 @@ class ScriptRepositoryTest {
 
         val scripts = repository.ensureInitialized()
 
-        assertEquals(1, scripts.size)
-        assertEquals("默认脚本", scripts[0].name)
-        assertEquals("log('legacy');", repository.read(scripts[0].id))
+        val migrated = scripts.first { it.name == "默认脚本" }
+        assertEquals("log('legacy');", repository.read(migrated.id))
         assertFalse(legacy.exists())
+        assertEquals(BuiltinScripts.all.size + 1, scripts.size)
     }
 
     @Test
@@ -81,5 +82,55 @@ class ScriptRepositoryTest {
 
         assertTrue(repository.indexExists())
         assertTrue(repository.ensureInitialized().isEmpty())
+    }
+
+    @Test
+    fun createsRenamesAndDeletesFolders() {
+        val folder = repository.createFolder("工作")
+        assertNotNull(folder)
+        assertEquals("工作", folder!!.name)
+        assertEquals(1, repository.folders().size)
+
+        assertTrue(repository.renameFolder(folder.id, "日常"))
+        assertEquals("日常", repository.folder(folder.id)?.name)
+
+        assertTrue(repository.deleteFolder(folder.id))
+        assertTrue(repository.folders().isEmpty())
+    }
+
+    @Test
+    fun duplicateFolderNamesGetSuffix() {
+        val first = repository.createFolder("项目")!!
+        val second = repository.createFolder("项目")!!
+
+        assertEquals("项目", first.name)
+        assertEquals("项目 (2)", second.name)
+    }
+
+    @Test
+    fun movesScriptsBetweenRootAndFolders() {
+        val folder = repository.createFolder("工作")!!
+        val script = repository.create("脚本", "log(1);")
+
+        assertTrue(repository.moveToFolder(script.id, folder.id))
+        assertEquals(1, repository.list(folder.id).size)
+        assertEquals(0, repository.list().size)
+        assertEquals(1, repository.count(folder.id))
+
+        assertTrue(repository.moveToFolder(script.id, null))
+        assertEquals(1, repository.list().size)
+        assertEquals(0, repository.list(folder.id).size)
+    }
+
+    @Test
+    fun deletingFolderMovesScriptsToRoot() {
+        val folder = repository.createFolder("工作")!!
+        val script = repository.create("脚本", "log(1);", folder.id)
+
+        assertTrue(repository.deleteFolder(folder.id))
+
+        assertNull(repository.find(script.id)?.folderId)
+        assertEquals(1, repository.list().size)
+        assertTrue(repository.list(folder.id).isEmpty())
     }
 }

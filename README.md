@@ -13,7 +13,8 @@
 - 坐标操作：`click(x, y)`、`longClick(x, y)`、`swipe(...)`、`press(...)`
 - 应用与系统：`launchApp`、`currentPackage`、`waitForPackage`、`back`、`home`、`recents`
 - 脚本工具：`sleep`、`toast`、`log`、`exit`、`dump`
-- 多脚本文件管理：新建、导入、重命名、删除，每个脚本独立文件
+- 多脚本文件管理：新建、导入、重命名、删除；支持一级文件夹、移动脚本，删除文件夹时脚本回到根目录
+- 内置 5 个示例脚本与使用教程，可从首页菜单恢复示例
 - 每个脚本独立编辑，支持行号、等宽字体、JS 语法高亮、常用符号栏、保存、运行、停止和日志
 - 每天固定时间定时执行（同一时间绑定一个脚本，精确闹钟不可用时自动降级）
 - 前台服务运行、开机恢复定时
@@ -38,7 +39,7 @@ JVM 单元测试（41 个）：
 ./gradlew :app:testDebugUnitTest
 ```
 
-仪器化测试（15 个，需要模拟器或真机）：
+仪器化测试（21 个，需要模拟器或真机）：
 
 ```bash
 ./gradlew :app:connectedDebugAndroidTest
@@ -55,7 +56,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 
 <img src="docs/screenshots/home.png" width="260" alt="首页" />
 
-截图：[首页](docs/screenshots/home.png) · [编辑页](docs/screenshots/editor.png) · [定时](docs/screenshots/schedule.png) · [运行日志](docs/screenshots/run-log.png)
+截图：[首页](docs/screenshots/home.png) · [编辑页](docs/screenshots/editor.png) · [使用教程](docs/screenshots/tutorial.png) · [定时](docs/screenshots/schedule.png) · [运行日志](docs/screenshots/run-log.png)
 
 ## CI/CD
 

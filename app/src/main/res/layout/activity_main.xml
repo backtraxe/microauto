@@ -15,6 +15,7 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            app:navigationIconTint="?attr/colorOnSurface"
             app:title="脚本"
             app:titleTextAppearance="?attr/textAppearanceTitleLarge" />
 
@@ -83,12 +84,14 @@
                 android:visibility="gone">
 
                 <TextView
+                    android:id="@+id/emptyTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="还没有脚本"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <TextView
+                    android:id="@+id/emptyHint"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
@@ -110,6 +113,13 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="导入脚本" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnEmptyFolder"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="新建文件夹" />
             </LinearLayout>
         </FrameLayout>
     </LinearLayout>

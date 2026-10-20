@@ -1,0 +1,84 @@
+package com.microauto.ui
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.core.view.isVisible
+import androidx.recyclerview.widget.RecyclerView
+import com.microauto.databinding.ItemFolderBinding
+import com.microauto.databinding.ItemScriptBinding
+import com.microauto.script.FolderMeta
+import com.microauto.script.ScriptMeta
+
+sealed class LibraryItem {
+    data class Folder(val meta: FolderMeta, val count: Int) : LibraryItem()
+    data class Script(val meta: ScriptMeta) : LibraryItem()
+}
+
+class LibraryAdapter(
+    private val onFolderClick: (FolderMeta) -> Unit,
+    private val onFolderMenu: (FolderMeta, View) -> Unit,
+    private val onScriptClick: (ScriptMeta) -> Unit,
+    private val onScriptMenu: (ScriptMeta, View) -> Unit,
+    private val subtitle: (ScriptMeta) -> String,
+    private val schedule: (ScriptMeta) -> String?
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+    private var items: List<LibraryItem> = emptyList()
+
+    fun submit(list: List<LibraryItem>) {
+        items = list
+        notifyDataSetChanged()
+    }
+
+    override fun getItemViewType(position: Int): Int =
+        if (items[position] is LibraryItem.Folder) TYPE_FOLDER else TYPE_SCRIPT
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return if (viewType == TYPE_FOLDER) {
+            FolderHolder(ItemFolderBinding.inflate(inflater, parent, false))
+        } else {
+            ScriptHolder(ItemScriptBinding.inflate(inflater, parent, false))
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val item = items[position]) {
+            is LibraryItem.Folder -> (holder as FolderHolder).bind(item)
+            is LibraryItem.Script -> (holder as ScriptHolder).bind(item.meta)
+        }
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    private inner class FolderHolder(
+        private val binding: ItemFolderBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(item: LibraryItem.Folder) {
+            binding.folderName.text = item.meta.name
+            binding.folderCount.text = "${item.count} 个脚本"
+            binding.root.setOnClickListener { onFolderClick(item.meta) }
+            binding.folderMore.setOnClickListener { onFolderMenu(item.meta, it) }
+        }
+    }
+
+    private inner class ScriptHolder(
+        private val binding: ItemScriptBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(meta: ScriptMeta) {
+            binding.nameText.text = meta.name
+            binding.metaText.text = subtitle(meta)
+            val scheduleText = schedule(meta)
+            binding.scheduleChip.isVisible = scheduleText != null
+            binding.scheduleChip.text = scheduleText.orEmpty()
+            binding.root.setOnClickListener { onScriptClick(meta) }
+            binding.moreButton.setOnClickListener { onScriptMenu(meta, it) }
+        }
+    }
+
+    private companion object {
+        const val TYPE_FOLDER = 0
+        const val TYPE_SCRIPT = 1
+    }
+}

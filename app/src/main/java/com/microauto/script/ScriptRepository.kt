@@ -11,13 +11,21 @@ data class ScriptMeta(
     val id: String,
     val name: String,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val folderId: String? = null
+)
+
+data class FolderMeta(
+    val id: String,
+    val name: String,
+    val createdAt: Long
 )
 
 class ScriptRepository(context: Context) {
     private val appContext = context.applicationContext
     private val dir = File(appContext.filesDir, "scripts")
     private val indexFile = File(dir, "index.json")
+    private val foldersFile = File(dir, "folders.json")
 
     init {
         dir.mkdirs()
@@ -26,31 +34,54 @@ class ScriptRepository(context: Context) {
     fun indexExists(): Boolean = indexFile.exists()
 
     fun ensureInitialized(): List<ScriptMeta> {
-        if (indexFile.exists()) return list()
+        if (indexFile.exists()) return listAll()
         val legacy = File(appContext.filesDir, "script.js")
-        val legacyContent = if (legacy.exists()) {
-            runCatching { legacy.readText() }.getOrDefault("")
-        } else {
-            ""
+        if (legacy.exists()) {
+            val legacyContent = runCatching { legacy.readText() }.getOrDefault("")
+            if (legacyContent.isNotBlank()) {
+                create("默认脚本", legacyContent)
+            }
+            legacy.delete()
         }
-        val content = legacyContent.ifBlank { DEFAULT_SCRIPT }
-        val name = if (legacyContent.isNotBlank()) "默认脚本" else "示例"
-        create(name, content)
-        if (legacy.exists()) legacy.delete()
-        return list()
+        ensureBuiltins()
+        return listAll()
     }
 
-    fun list(): List<ScriptMeta> = readIndex().sortedByDescending { it.updatedAt }
+    fun ensureBuiltins(): Int {
+        val existing = readIndex().map { it.name }.toSet()
+        var added = 0
+        for (item in BuiltinScripts.all) {
+            if (item.name !in existing) {
+                create(item.name, item.content)
+                added++
+            }
+        }
+        return added
+    }
+
+    fun listAll(): List<ScriptMeta> = readIndex().sortedByDescending { it.updatedAt }
+
+    fun list(folderId: String? = null): List<ScriptMeta> =
+        readIndex()
+            .filter { it.folderId == folderId }
+            .sortedByDescending { it.updatedAt }
 
     fun find(id: String): ScriptMeta? = readIndex().firstOrNull { it.id == id }
 
-    fun create(name: String, content: String): ScriptMeta {
+    fun create(
+        name: String,
+        content: String,
+        folderId: String? = null
+    ): ScriptMeta {
         val metas = readIndex()
         val uniqueName = ScriptNaming.uniqueName(name, metas.map { it.name }.toSet())
         val id = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
+        val targetFolder = folderId?.takeIf { candidate ->
+            readFolders().any { it.id == candidate }
+        }
         File(dir, "$id.js").writeText(content)
-        val meta = ScriptMeta(id, uniqueName, now, now)
+        val meta = ScriptMeta(id, uniqueName, now, now, targetFolder)
         writeIndex(metas + meta)
         return meta
     }
@@ -100,6 +131,75 @@ class ScriptRepository(context: Context) {
         return true
     }
 
+    fun moveToFolder(id: String, folderId: String?): Boolean {
+        if (folderId != null && folders().none { it.id == folderId }) return false
+        val metas = readIndex().toMutableList()
+        val index = metas.indexOfFirst { it.id == id }
+        if (index < 0) return false
+        metas[index] = metas[index].copy(
+            folderId = folderId,
+            updatedAt = System.currentTimeMillis()
+        )
+        writeIndex(metas)
+        return true
+    }
+
+    fun folders(): List<FolderMeta> = readFolders().sortedBy { it.name.lowercase() }
+
+    fun folder(id: String): FolderMeta? = readFolders().firstOrNull { it.id == id }
+
+    fun folderName(id: String): String? = folder(id)?.name
+
+    fun count(folderId: String): Int = readIndex().count { it.folderId == folderId }
+
+    fun createFolder(name: String): FolderMeta? {
+        val base = ScriptNaming.sanitize(name)
+        if (base.isEmpty()) return null
+        val folders = readFolders().toMutableList()
+        val uniqueName = ScriptNaming.uniqueName(base, folders.map { it.name }.toSet())
+        val folder = FolderMeta(
+            id = UUID.randomUUID().toString(),
+            name = uniqueName,
+            createdAt = System.currentTimeMillis()
+        )
+        folders += folder
+        writeFolders(folders)
+        return folder
+    }
+
+    fun renameFolder(id: String, newName: String): Boolean {
+        val base = ScriptNaming.sanitize(newName)
+        if (base.isEmpty()) return false
+        val folders = readFolders().toMutableList()
+        val index = folders.indexOfFirst { it.id == id }
+        if (index < 0) return false
+        val uniqueName = ScriptNaming.uniqueName(
+            base,
+            folders.map { it.name }.toSet(),
+            exclude = folders[index].name
+        )
+        folders[index] = folders[index].copy(name = uniqueName)
+        writeFolders(folders)
+        return true
+    }
+
+    fun deleteFolder(id: String): Boolean {
+        val folders = readFolders().toMutableList()
+        if (folders.none { it.id == id }) return false
+        folders.removeAll { it.id == id }
+        val now = System.currentTimeMillis()
+        val metas = readIndex().map {
+            if (it.folderId == id) {
+                it.copy(folderId = null, updatedAt = now)
+            } else {
+                it
+            }
+        }
+        writeIndex(metas)
+        writeFolders(folders)
+        return true
+    }
+
     private fun readIndex(): MutableList<ScriptMeta> {
         if (!indexFile.exists()) return mutableListOf()
         return runCatching {
@@ -110,7 +210,8 @@ class ScriptRepository(context: Context) {
                     id = obj.getString("id"),
                     name = obj.getString("name"),
                     createdAt = obj.optLong("createdAt"),
-                    updatedAt = obj.optLong("updatedAt")
+                    updatedAt = obj.optLong("updatedAt"),
+                    folderId = obj.optString("folderId").takeIf { it.isNotBlank() }
                 )
             }
         }.getOrElse { mutableListOf() }
@@ -125,14 +226,47 @@ class ScriptRepository(context: Context) {
                     put("name", meta.name)
                     put("createdAt", meta.createdAt)
                     put("updatedAt", meta.updatedAt)
+                    meta.folderId?.let { put("folderId", it) }
                 }
             )
         }
-        val text = array.toString()
-        val temp = File(dir, "index.json.tmp")
+        writeAtomically(indexFile, array.toString())
+    }
+
+    private fun readFolders(): MutableList<FolderMeta> {
+        if (!foldersFile.exists()) return mutableListOf()
+        return runCatching {
+            val array = JSONArray(foldersFile.readText())
+            MutableList(array.length()) { index ->
+                val obj = array.getJSONObject(index)
+                FolderMeta(
+                    id = obj.getString("id"),
+                    name = obj.getString("name"),
+                    createdAt = obj.optLong("createdAt")
+                )
+            }
+        }.getOrElse { mutableListOf() }
+    }
+
+    private fun writeFolders(folders: List<FolderMeta>) {
+        val array = JSONArray()
+        folders.forEach { folder ->
+            array.put(
+                JSONObject().apply {
+                    put("id", folder.id)
+                    put("name", folder.name)
+                    put("createdAt", folder.createdAt)
+                }
+            )
+        }
+        writeAtomically(foldersFile, array.toString())
+    }
+
+    private fun writeAtomically(target: File, text: String) {
+        val temp = File(dir, "${target.name}.tmp")
         temp.writeText(text)
-        if (!temp.renameTo(indexFile)) {
-            indexFile.writeText(text)
+        if (!temp.renameTo(target)) {
+            target.writeText(text)
             temp.delete()
         }
     }
