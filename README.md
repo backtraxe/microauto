@@ -4,6 +4,8 @@
 
 一个非 root、纯本机运行的 Android 界面自动化工具。用 JavaScript 写脚本，通过无障碍服务查找控件、点击、滑动和启动应用，适合自动签到这类固定流程。
 
+完整教程见 [docs/tutorial.md](docs/tutorial.md)，包含安装、权限、脚本 API、自动签到实战和常见问题。
+
 ## 已实现的最小功能
 
 - 无障碍查找与操作：`text` / `textContains` / `textMatches` / `id` / `desc` / `className`
