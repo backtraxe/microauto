@@ -61,7 +61,7 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 
 GitHub Actions 配置在 `.github/workflows/android.yml`：
 
-- push 到 `main` 或提 PR：自动运行单元测试、Android Lint、构建 debug APK，并在 API 35 模拟器上运行仪器化测试；APK 作为 Actions artifact 上传。
+- push 到 `main` 或提 PR：自动运行单元测试、Android Lint、构建 debug APK，并在 API 35 `default` 模拟器上运行仪器化测试；APK 作为 Actions artifact 上传。
 - push `v*` 标签：`build` 和 `ui-test` 都通过后自动创建 GitHub Release，并附带 `MicroAuto-<版本号>.apk`。
 
 发布一个版本：

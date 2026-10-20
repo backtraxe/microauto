@@ -81,13 +81,25 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
-          target: aosp_atd
+          target: default
           arch: x86_64
           profile: pixel_6
+          cores: 2
+          ram-size: 3072M
+          heap-size: 512M
+          disk-size: 6144M
           emulator-boot-timeout: 1200
           disable-animations: true
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
-          script: ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.builder.sdkDownload=false
+          script: |
+            set +e
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.builder.sdkDownload=false
+            STATUS=$?
+            adb logcat -d -v threadtime > logcat.txt 2>&1
+            adb logcat -b crash -d -v threadtime > logcat-crash.txt 2>&1
+            adb shell dumpsys dropbox --print data_app_crash > dropbox-crash.txt 2>&1
+            adb shell pm list packages | grep microauto > installed-packages.txt 2>&1
+            exit $STATUS
 
       - name: Upload instrumentation reports
         if: always()
@@ -97,6 +109,10 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            logcat.txt
+            logcat-crash.txt
+            dropbox-crash.txt
+            installed-packages.txt
           if-no-files-found: ignore
 
   release:
