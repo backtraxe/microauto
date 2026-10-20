@@ -422,8 +422,9 @@ class MainActivity : AppCompatActivity() {
         val popup = PopupMenu(this, anchor)
         popup.menu.add(0, 1, 0, "重命名")
         popup.menu.add(0, 2, 1, "移动到…")
-        popup.menu.add(0, 3, 2, "导出")
-        popup.menu.add(0, 4, 3, "删除")
+        popup.menu.add(0, 3, 2, "版本历史")
+        popup.menu.add(0, 4, 3, "导出")
+        popup.menu.add(0, 5, 4, "删除")
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> {
@@ -437,12 +438,20 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 3 -> {
+                    startActivity(
+                        Intent(this, VersionsActivity::class.java)
+                            .putExtra(VersionsActivity.EXTRA_SCRIPT_ID, meta.id)
+                    )
+                    true
+                }
+
+                4 -> {
                     pendingExportId = meta.id
                     exportLauncher.launch("${meta.name}.js")
                     true
                 }
 
-                4 -> {
+                5 -> {
                     confirmDelete(meta)
                     true
                 }

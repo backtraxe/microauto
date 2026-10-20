@@ -30,6 +30,7 @@ import com.microauto.R
 import com.microauto.accessibility.AccessibilityUtils
 import com.microauto.core.ScheduleTime
 import com.microauto.databinding.ActivityEditorBinding
+import com.microauto.databinding.DialogVersionNoteBinding
 import com.microauto.databinding.SheetScheduleBinding
 import com.microauto.schedule.SchedulePrefs
 import com.microauto.schedule.ScriptScheduler
@@ -66,6 +67,14 @@ class EditorActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    private val versionsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            reloadScript()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         scriptId = intent.getStringExtra(EXTRA_SCRIPT_ID) ?: run {
@@ -85,12 +94,24 @@ class EditorActivity : AppCompatActivity() {
         binding.toolbar.setNavigationOnClickListener { requestFinish() }
         binding.toolbar.inflateMenu(R.menu.menu_editor)
         binding.toolbar.setOnMenuItemClickListener { item ->
-            if (item.itemId == R.id.action_save) {
-                saveScript()
-                toast("已保存")
-                true
-            } else {
-                false
+            when (item.itemId) {
+                R.id.action_save -> {
+                    saveScript()
+                    toast("已保存")
+                    true
+                }
+
+                R.id.action_publish -> {
+                    showPublishDialog()
+                    true
+                }
+
+                R.id.action_versions -> {
+                    openVersions()
+                    true
+                }
+
+                else -> false
             }
         }
 
@@ -300,6 +321,44 @@ class EditorActivity : AppCompatActivity() {
     private fun saveScript() {
         lastSavedContent = binding.scriptEditor.text.toString()
         repository.save(scriptId, lastSavedContent)
+    }
+
+    private fun showPublishDialog() {
+        val dialogBinding = DialogVersionNoteBinding.inflate(layoutInflater)
+        MaterialAlertDialogBuilder(this)
+            .setTitle("发布版本")
+            .setView(dialogBinding.root)
+            .setPositiveButton("发布") { _, _ ->
+                saveScript()
+                val version = repository.publishVersion(
+                    scriptId,
+                    dialogBinding.versionNoteInput.text.toString()
+                )
+                if (version != null) {
+                    toast("已发布 v${version.version}")
+                } else {
+                    toast("发布失败")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun openVersions() {
+        saveScript()
+        versionsLauncher.launch(
+            Intent(this, VersionsActivity::class.java)
+                .putExtra(VersionsActivity.EXTRA_SCRIPT_ID, scriptId)
+        )
+    }
+
+    private fun reloadScript() {
+        val content = repository.read(scriptId).orEmpty()
+        lastSavedContent = content
+        binding.scriptEditor.setText(content)
+        binding.scriptEditor.setSelection(content.length)
+        updateLineNumbers()
+        binding.scriptEditor.post { updateLineNumbers() }
     }
 
     private fun requestFinish() {

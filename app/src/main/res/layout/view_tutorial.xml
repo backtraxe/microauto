@@ -92,6 +92,22 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
+        android:text="版本管理"
+        android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:lineSpacingExtra="4dp"
+        android:text="编辑页右上角菜单 → 发布版本，给当前内容打一个快照并写备注。\n菜单 → 版本历史，可查看、恢复或删除历史版本；恢复会覆盖当前内容。\n首页脚本菜单也可以直接打开版本历史。"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
         android:text="搜索"
         android:textAppearance="?attr/textAppearanceTitleMedium" />
 

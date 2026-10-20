@@ -6,4 +6,14 @@
         android:icon="@drawable/ic_check"
         android:title="保存"
         app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_publish"
+        android:title="发布版本"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_versions"
+        android:title="版本历史"
+        app:showAsAction="never" />
 </menu>

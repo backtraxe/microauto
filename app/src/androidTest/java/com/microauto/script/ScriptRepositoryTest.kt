@@ -133,4 +133,35 @@ class ScriptRepositoryTest {
         assertEquals(1, repository.list().size)
         assertTrue(repository.list(folder.id).isEmpty())
     }
+
+    @Test
+    fun publishesAndRestoresVersions() {
+        val script = repository.create("版本脚本", "log(1);")
+        val v1 = repository.publishVersion(script.id, "第一版")!!
+        assertEquals(1, v1.version)
+        assertEquals("第一版", v1.note)
+
+        repository.save(script.id, "log(2);")
+        val v2 = repository.publishVersion(script.id, "")!!
+        assertEquals(2, v2.version)
+        assertEquals(2, repository.versions(script.id).size)
+        assertEquals("log(1);", repository.readVersion(v1.id))
+        assertEquals("log(2);", repository.readVersion(v2.id))
+
+        assertTrue(repository.restoreVersion(v1.id))
+        assertEquals("log(1);", repository.read(script.id))
+    }
+
+    @Test
+    fun deletesVersionsAndCleansUpWithScript() {
+        val script = repository.create("版本脚本", "log(1);")
+        val v1 = repository.publishVersion(script.id, "")!!
+
+        assertTrue(repository.deleteVersion(v1.id))
+        assertTrue(repository.versions(script.id).isEmpty())
+
+        repository.publishVersion(script.id, "")
+        assertTrue(repository.delete(script.id))
+        assertTrue(repository.versions(script.id).isEmpty())
+    }
 }

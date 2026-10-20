@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.replaceText
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -76,6 +77,20 @@ class EditorActivityTest {
             onView(withId(R.id.action_save)).perform(click())
             Thread.sleep(300)
             assertEquals("toast('saved');", ScriptRepository(context).read(scriptId))
+        }
+    }
+
+    @Test
+    fun publishesVersionFromMenu() {
+        launch().use {
+            onView(withId(R.id.scriptEditor)).perform(replaceText("log('v1');"))
+            openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
+            onView(withText("发布版本")).perform(click())
+            onView(withId(R.id.versionNoteInput)).perform(replaceText("第一版"))
+            onView(withText("发布")).perform(click())
+            val versions = ScriptRepository(context).versions(scriptId)
+            assertEquals(1, versions.size)
+            assertEquals("第一版", versions[0].note)
         }
     }
 }

@@ -21,11 +21,21 @@ data class FolderMeta(
     val createdAt: Long
 )
 
+data class ScriptVersion(
+    val id: String,
+    val scriptId: String,
+    val version: Int,
+    val note: String,
+    val createdAt: Long
+)
+
 class ScriptRepository(context: Context) {
     private val appContext = context.applicationContext
     private val dir = File(appContext.filesDir, "scripts")
     private val indexFile = File(dir, "index.json")
     private val foldersFile = File(dir, "folders.json")
+    private val versionsFile = File(dir, "versions.json")
+    private val versionsDir = File(dir, "versions")
 
     init {
         dir.mkdirs()
@@ -128,7 +138,70 @@ class ScriptRepository(context: Context) {
         metas.removeAt(index)
         File(dir, "$id.js").delete()
         writeIndex(metas)
+        removeVersionsOf(id)
         return true
+    }
+
+    fun publishVersion(scriptId: String, note: String): ScriptVersion? {
+        if (find(scriptId) == null) return null
+        val content = read(scriptId) ?: return null
+        val existing = readVersions().filter { it.scriptId == scriptId }
+        val version = (existing.maxOfOrNull { it.version } ?: 0) + 1
+        val id = UUID.randomUUID().toString()
+        val versionDir = File(versionsDir, scriptId).apply { mkdirs() }
+        File(versionDir, "$id.js").writeText(content)
+        val record = ScriptVersion(
+            id = id,
+            scriptId = scriptId,
+            version = version,
+            note = note.trim(),
+            createdAt = System.currentTimeMillis()
+        )
+        writeVersions(readVersions() + record)
+        return record
+    }
+
+    fun versions(scriptId: String): List<ScriptVersion> =
+        readVersions()
+            .filter { it.scriptId == scriptId }
+            .sortedByDescending { it.version }
+
+    fun readVersion(versionId: String): String? {
+        val version = readVersions().firstOrNull { it.id == versionId } ?: return null
+        val file = File(versionsDir, "${version.scriptId}/${version.id}.js")
+        if (!file.exists()) return null
+        return runCatching { file.readText() }.getOrNull()
+    }
+
+    fun restoreVersion(versionId: String): Boolean {
+        val version = readVersions().firstOrNull { it.id == versionId } ?: return false
+        val content = readVersion(versionId) ?: return false
+        val metas = readIndex().toMutableList()
+        val index = metas.indexOfFirst { it.id == version.scriptId }
+        if (index < 0) return false
+        File(dir, "${version.scriptId}.js").writeText(content)
+        metas[index] = metas[index].copy(updatedAt = System.currentTimeMillis())
+        writeIndex(metas)
+        return true
+    }
+
+    fun deleteVersion(versionId: String): Boolean {
+        val versions = readVersions().toMutableList()
+        val index = versions.indexOfFirst { it.id == versionId }
+        if (index < 0) return false
+        val version = versions.removeAt(index)
+        File(versionsDir, "${version.scriptId}/${version.id}.js").delete()
+        writeVersions(versions)
+        return true
+    }
+
+    private fun removeVersionsOf(scriptId: String) {
+        val versions = readVersions()
+        versions.filter { it.scriptId == scriptId }.forEach {
+            File(versionsDir, "${it.scriptId}/${it.id}.js").delete()
+        }
+        File(versionsDir, scriptId).deleteRecursively()
+        writeVersions(versions.filterNot { it.scriptId == scriptId })
     }
 
     fun moveToFolder(id: String, folderId: String?): Boolean {
@@ -260,6 +333,39 @@ class ScriptRepository(context: Context) {
             )
         }
         writeAtomically(foldersFile, array.toString())
+    }
+
+    private fun readVersions(): MutableList<ScriptVersion> {
+        if (!versionsFile.exists()) return mutableListOf()
+        return runCatching {
+            val array = JSONArray(versionsFile.readText())
+            MutableList(array.length()) { index ->
+                val obj = array.getJSONObject(index)
+                ScriptVersion(
+                    id = obj.getString("id"),
+                    scriptId = obj.getString("scriptId"),
+                    version = obj.optInt("version"),
+                    note = obj.optString("note"),
+                    createdAt = obj.optLong("createdAt")
+                )
+            }
+        }.getOrElse { mutableListOf() }
+    }
+
+    private fun writeVersions(versions: List<ScriptVersion>) {
+        val array = JSONArray()
+        versions.forEach { version ->
+            array.put(
+                JSONObject().apply {
+                    put("id", version.id)
+                    put("scriptId", version.scriptId)
+                    put("version", version.version)
+                    put("note", version.note)
+                    put("createdAt", version.createdAt)
+                }
+            )
+        }
+        writeAtomically(versionsFile, array.toString())
     }
 
     private fun writeAtomically(target: File, text: String) {
