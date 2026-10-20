@@ -2,11 +2,11 @@
 
 从安装、开启无障碍，到写出第一个自动签到脚本。
 
-> 本教程基于 v0.3.0。不同 Android 版本、厂商 ROM 和目标 App 可能有差异，遇到问题先看第 11 节。
+> 本教程基于 v0.3.1。不同 Android 版本、厂商 ROM 和目标 App 可能有差异，遇到问题先看第 11 节。
 
 ## 0. 五分钟快速开始
 
-1. 从 [Releases](https://github.com/backtraxe/microauto/releases) 下载 `MicroAuto-0.3.0.apk` 并安装。
+1. 从 [Releases](https://github.com/backtraxe/microauto/releases) 下载 `MicroAuto-0.3.1.apk` 并安装。
 2. 打开 MicroAuto，点顶部「无障碍」「精确闹钟」状态 chip，或从右上角菜单完成权限设置。
 3. 点右下角「+」新建脚本，进入编辑页。保持屏幕点亮并解锁，点「运行」。示例脚本会弹 Toast，并在日志里打印 MicroAuto 自己的包名和节点树。
 4. 要查看目标 App 的界面节点：点「看界面」，在 5 秒内切到目标 App 的签到页，日志里会输出它的节点树，用 `text` 或 `id` 找到签到按钮。
@@ -44,13 +44,13 @@ MicroAuto 是一个非 root、纯本机运行的 Android 界面自动化工具�
 - 只能操作暴露了无障碍节点的界面。纯 Canvas、部分游戏、部分 WebView 可能读不到内容。
 - 部分 App 会检测无障碍或模拟点击，可能拒绝操作或触发风控。
 - 定时触发受系统 Doze、厂商保活策略和精确闹钟权限影响。
-- v0.3.0 没有 OCR、找图、悬浮窗和可视化节点选择器。
+- v0.3.1 没有 OCR、找图、悬浮窗和可视化节点选择器。
 
 ## 3. 安装
 
 ### 从 Release 下载
 
-打开 [Releases](https://github.com/backtraxe/microauto/releases)，下载最新的 `MicroAuto-<版本号>.apk`（例如 `MicroAuto-0.3.0.apk`），传到手机安装。
+打开 [Releases](https://github.com/backtraxe/microauto/releases)，下载最新的 `MicroAuto-<版本号>.apk`（例如 `MicroAuto-0.3.1.apk`），传到手机安装。
 
 如果覆盖安装提示「签名不一致」，先卸载旧版再装。当前 Release 使用 debug 签名，不同 CI 构建环境生成的签名可能不同。
 
@@ -64,7 +64,7 @@ cd microauto
 ./gradlew :app:assembleDebug
 ```
 
-APK 在 `app/build/outputs/apk/debug/MicroAuto-<版本号>.apk`，例如 `MicroAuto-0.3.0.apk`。
+APK 在 `app/build/outputs/apk/debug/MicroAuto-<版本号>.apk`，例如 `MicroAuto-0.3.1.apk`。
 
 ## 4. 开启权限
 

@@ -28,7 +28,7 @@
 ./gradlew :app:assembleDebug
 ```
 
-APK 输出：`app/build/outputs/apk/debug/MicroAuto-<版本号>.apk`，例如 `MicroAuto-0.3.0.apk`。
+APK 输出：`app/build/outputs/apk/debug/MicroAuto-<版本号>.apk`，例如 `MicroAuto-0.3.1.apk`。
 
 ## CI/CD
 
@@ -40,8 +40,8 @@ GitHub Actions 配置在 `.github/workflows/android.yml`：
 发布一个版本：
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.3.1
+git push origin v0.3.1
 ```
 
 当前 Release 附件是 debug 签名 APK，可直接安装；如果需要正式签名，需要在仓库 Secrets 中配置 keystore 并补充 signingConfig。
