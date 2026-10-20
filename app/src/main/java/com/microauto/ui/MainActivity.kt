@@ -9,6 +9,8 @@ import android.os.PowerManager
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
@@ -155,6 +157,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.searchInput.doAfterTextChanged { refresh() }
+        binding.searchInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                hideKeyboard()
+                true
+            } else {
+                false
+            }
+        }
         binding.tutorialContent.btnRestoreBuiltins.setOnClickListener { restoreBuiltins() }
         binding.btnEmptyNew.setOnClickListener { newScript() }
         binding.btnEmptyImport.setOnClickListener {
@@ -613,6 +623,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun hideKeyboard() {
+        getSystemService(InputMethodManager::class.java)
+            ?.hideSoftInputFromWindow(binding.searchInput.windowToken, 0)
+        binding.searchInput.clearFocus()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
