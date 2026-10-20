@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">MicroAuto</string>
+    <string name="accessibility_service_label">MicroAuto 自动化服务</string>
+    <string name="accessibility_service_description">用于执行用户脚本的界面自动化服务。开启后可查找控件、点击、滑动和启动应用。</string>
+</resources>
