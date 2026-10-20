@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.View
@@ -120,21 +121,6 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
 
-                R.id.action_accessibility -> {
-                    openAccessibilitySettings()
-                    true
-                }
-
-                R.id.action_battery -> {
-                    openBatterySettings()
-                    true
-                }
-
-                R.id.action_alarm -> {
-                    openExactAlarmSettings()
-                    true
-                }
-
                 else -> false
             }
         }
@@ -146,6 +132,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnEmptyFolder.setOnClickListener { newFolder() }
         binding.chipAccessibility.setOnClickListener { openAccessibilitySettings() }
         binding.chipAlarm.setOnClickListener { openExactAlarmSettings() }
+        binding.chipBattery.setOnClickListener { openBatterySettings() }
         binding.chipSchedule.setOnClickListener { openScheduledScript() }
     }
 
@@ -209,6 +196,13 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             "精确闹钟：无需授权"
+        }
+        val powerManager = getSystemService(PowerManager::class.java)
+        val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(packageName) == true
+        binding.chipBattery.text = if (ignoringBattery) {
+            "省电：已允许"
+        } else {
+            "省电：未允许"
         }
         val scheduled = SchedulePrefs.scriptId(this)?.let { repository.find(it) }
         binding.chipSchedule.text = if (SchedulePrefs.isEnabled(this) && scheduled != null) {

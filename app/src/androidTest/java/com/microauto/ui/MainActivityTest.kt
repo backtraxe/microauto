@@ -36,6 +36,7 @@ class MainActivityTest {
             onView(withText("脚本")).check(matches(isDisplayed()))
             onView(withId(R.id.chipAccessibility)).check(matches(isDisplayed()))
             onView(withId(R.id.chipAlarm)).check(matches(isDisplayed()))
+            onView(withId(R.id.chipBattery)).check(matches(isDisplayed()))
             onView(withId(R.id.chipSchedule)).check(matches(isDisplayed()))
             onView(withId(R.id.fabNew)).check(matches(isDisplayed()))
         }
