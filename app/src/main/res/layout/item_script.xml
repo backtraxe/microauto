@@ -61,7 +61,7 @@
             android:contentDescription="更多操作"
             android:padding="12dp"
             android:scaleType="centerInside"
-            android:src="@android:drawable/ic_menu_more"
+            app:srcCompat="@drawable/ic_more_vert"
             app:tint="?attr/colorOnSurfaceVariant" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

@@ -1,13 +1,18 @@
 package com.microauto.ui
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -36,6 +41,10 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var repository: ScriptRepository
     private lateinit var scriptId: String
     private var lastSavedContent = ""
+
+    private val notificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,6 +94,7 @@ class EditorActivity : AppCompatActivity() {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 return@setOnClickListener
             }
+            ensureNotificationPermission()
             ScriptService.start(this, binding.scriptEditor.text.toString())
         }
         binding.btnStop.setOnClickListener {
@@ -95,6 +105,7 @@ class EditorActivity : AppCompatActivity() {
                 toast("请先开启无障碍服务")
                 return@setOnClickListener
             }
+            ensureNotificationPermission()
             ScriptService.start(
                 this,
                 "toast(\"5 秒内切到目标界面\"); sleep(5000); dump();"
@@ -215,6 +226,17 @@ class EditorActivity : AppCompatActivity() {
         SchedulePrefs.hour(this),
         SchedulePrefs.minute(this)
     )
+
+    private fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     private fun toast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()

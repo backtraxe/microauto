@@ -18,21 +18,16 @@
             app:title="脚本"
             app:titleTextAppearance="?attr/textAppearanceTitleLarge" />
 
-        <HorizontalScrollView
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/statusChips"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingStart="16dp"
             android:paddingTop="4dp"
             android:paddingEnd="16dp"
             android:paddingBottom="8dp"
-            android:scrollbars="none">
-
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/statusChips"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                app:chipSpacingHorizontal="8dp"
-                app:singleLine="true">
+            app:chipSpacingHorizontal="8dp"
+            app:chipSpacingVertical="4dp">
 
                 <com.google.android.material.chip.Chip
                     android:id="@+id/chipAccessibility"
@@ -63,8 +58,7 @@
                     android:clickable="true"
                     android:text="定时"
                     android:textSize="12sp" />
-            </com.google.android.material.chip.ChipGroup>
-        </HorizontalScrollView>
+        </com.google.android.material.chip.ChipGroup>
 
         <FrameLayout
             android:layout_width="match_parent"

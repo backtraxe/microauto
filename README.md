@@ -38,7 +38,7 @@ JVM 单元测试（37 个）：
 ./gradlew :app:testDebugUnitTest
 ```
 
-仪器化测试（需要模拟器或真机）：
+仪器化测试（13 个，需要模拟器或真机）：
 
 ```bash
 ./gradlew :app:connectedDebugAndroidTest
@@ -50,6 +50,12 @@ macOS Apple Silicon 本地一键模拟器测试（安装 API 35 arm64 镜像、�
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 ./scripts/run-emulator-tests.sh
 ```
+
+## 界面预览
+
+<img src="docs/screenshots/home.png" width="260" alt="首页" />
+
+截图：[首页](docs/screenshots/home.png) · [编辑页](docs/screenshots/editor.png) · [定时](docs/screenshots/schedule.png) · [运行日志](docs/screenshots/run-log.png)
 
 ## CI/CD
 
