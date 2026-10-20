@@ -1,0 +1,23 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_import"
+        android:title="导入脚本"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_accessibility"
+        android:title="无障碍设置"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_battery"
+        android:title="省电设置"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_alarm"
+        android:title="精确闹钟"
+        app:showAsAction="never" />
+</menu>

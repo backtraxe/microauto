@@ -48,7 +48,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: microauto-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/MicroAuto-*.apk
           if-no-files-found: error
 
   release:
@@ -67,5 +67,5 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/app-debug.apk
+          files: dist/MicroAuto-*.apk
           generate_release_notes: true

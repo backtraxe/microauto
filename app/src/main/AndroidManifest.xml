@@ -34,7 +34,8 @@
 
         <activity
             android:name=".ui.EditorActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
 
         <service
             android:name=".accessibility.AutomationService"

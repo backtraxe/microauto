@@ -17,6 +17,7 @@
 - 每个脚本独立编辑，支持保存、运行、停止和日志
 - 每天固定时间定时执行（同一时间绑定一个脚本，精确闹钟不可用时自动降级）
 - 前台服务运行、开机恢复定时
+- Material 3 界面：动态取色、edge-to-edge、脚本卡片、状态 chips、FAB、定时底部 sheet
 
 ## 构建
 
@@ -27,20 +28,20 @@
 ./gradlew :app:assembleDebug
 ```
 
-APK 输出：`app/build/outputs/apk/debug/app-debug.apk`。
+APK 输出：`app/build/outputs/apk/debug/MicroAuto-<版本号>.apk`，例如 `MicroAuto-0.3.0.apk`。
 
 ## CI/CD
 
 GitHub Actions 配置在 `.github/workflows/android.yml`：
 
 - push 到 `main` 或提 PR：自动运行单元测试、Android Lint、构建 debug APK，APK 作为 Actions artifact 上传。
-- push `v*` 标签：构建通过后自动创建 GitHub Release，并附带 `app-debug.apk`。
+- push `v*` 标签：构建通过后自动创建 GitHub Release，并附带 `MicroAuto-<版本号>.apk`。
 
 发布一个版本：
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 当前 Release 附件是 debug 签名 APK，可直接安装；如果需要正式签名，需要在仓库 Secrets 中配置 keystore 并补充 signingConfig。
@@ -48,12 +49,12 @@ git push origin v0.2.0
 ## 使用
 
 1. 安装 APK，打开 MicroAuto。
-2. 点「无障碍」，在系统设置中开启「MicroAuto 自动化服务」。Android 13+ 侧载应用如果开关是灰的，先到应用信息里允许「受限设置」。
-3. 点「省电」，把 MicroAuto 设为不受电池优化限制；并在系统设置里允许自启动（国产 ROM）。
-4. 点「闹钟」授予精确闹钟权限（Android 12+），否则定时可能被系统延后。
-5. 点「新建」创建脚本，或点「导入」从文件选择器导入 `.js` / `.txt` 文件。
-6. 点进脚本编辑，保存后运行。
-7. 需要定时签到：在脚本编辑页填时间（如 `08:05`），打开「启用」，点「保存定时」。
+2. 点顶部「无障碍」状态 chip（或右上角菜单 → 无障碍设置），在系统设置中开启「MicroAuto 自动化服务」。Android 13+ 侧载应用如果开关是灰的，先到应用信息里允许「受限设置」。
+3. 点右上角菜单 →「省电设置」，把 MicroAuto 设为不受电池优化限制；并在系统设置里允许自启动（国产 ROM）。
+4. 点「精确闹钟」状态 chip（或右上角菜单 →「精确闹钟」）授予权限（Android 12+），否则定时可能被系统延后。
+5. 点右下角「+」新建脚本，或点右上角菜单 →「导入脚本」从文件选择器导入 `.js` / `.txt` 文件。
+6. 点脚本卡片进入编辑页，保存后运行。
+7. 需要定时签到：在编辑页点「设置」，选择时间并启用，保存定时。
 
 建议使用一台插电、常亮的旧手机，并在开发者选项中开启「充电时不锁定屏幕」。锁屏状态下无法执行 UI 操作。
 
