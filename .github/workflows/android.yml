@@ -77,6 +77,12 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - name: Run instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -91,15 +97,7 @@ jobs:
           emulator-boot-timeout: 1200
           disable-animations: true
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
-          script: |
-            set +e
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon -Pandroid.builder.sdkDownload=false
-            STATUS=$?
-            adb logcat -d -v threadtime > logcat.txt 2>&1
-            adb logcat -b crash -d -v threadtime > logcat-crash.txt 2>&1
-            adb shell dumpsys dropbox --print data_app_crash > dropbox-crash.txt 2>&1
-            adb shell pm list packages | grep microauto > installed-packages.txt 2>&1
-            exit $STATUS
+          script: bash scripts/ci-instrumentation.sh
 
       - name: Upload instrumentation reports
         if: always()
