@@ -67,8 +67,8 @@ GitHub Actions 配置在 `.github/workflows/android.yml`：
 发布一个版本：
 
 ```bash
-git tag v0.3.1
-git push origin v0.3.1
+git tag v0.3.2
+git push origin v0.3.2
 ```
 
 ## 签名
