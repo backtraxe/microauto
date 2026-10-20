@@ -32,6 +32,10 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.EditorActivity"
+            android:exported="false" />
+
         <service
             android:name=".accessibility.AutomationService"
             android:exported="true"

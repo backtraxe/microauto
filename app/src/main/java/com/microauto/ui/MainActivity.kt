@@ -1,56 +1,84 @@
 package com.microauto.ui
 
 import android.Manifest
+import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.View
+import android.widget.EditText
+import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import com.microauto.accessibility.AutomationService
-import com.microauto.core.ScheduleTime
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.microauto.accessibility.AccessibilityUtils
+import com.microauto.core.ScriptNaming
 import com.microauto.databinding.ActivityMainBinding
 import com.microauto.schedule.SchedulePrefs
 import com.microauto.schedule.ScriptScheduler
-import com.microauto.script.RunLog
-import com.microauto.script.RunState
-import com.microauto.script.ScriptService
-import com.microauto.script.ScriptStore
+import com.microauto.script.ScriptMeta
+import com.microauto.script.ScriptRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.DateFormat
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-    private lateinit var store: ScriptStore
+    private lateinit var repository: ScriptRepository
+    private lateinit var adapter: ScriptAdapter
 
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    private val importLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) importScript(uri)
+    }
+
+    private val exportLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        if (uri != null) exportScript(uri)
+    }
+
+    private var pendingExportId: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingExportId = savedInstanceState?.getString(KEY_PENDING_EXPORT)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        store = ScriptStore(this)
+        repository = ScriptRepository(this)
+        adapter = ScriptAdapter(
+            onClick = { openEditor(it.id) },
+            onMenu = { meta, anchor -> showMenu(meta, anchor) },
+            subtitle = { subtitle(it) }
+        )
+        binding.scriptList.layoutManager = LinearLayoutManager(this)
+        binding.scriptList.adapter = adapter
 
-        binding.scriptEditor.setText(store.read())
-        loadSchedule()
+        repository.ensureInitialized()
+
         bindActions()
-        observeState()
         requestNotificationPermissionIfNeeded()
     }
 
     override fun onResume() {
         super.onResume()
-        updateStatus()
+        refresh()
     }
 
     private fun bindActions() {
@@ -72,101 +100,50 @@ class MainActivity : AppCompatActivity() {
                 toast("当前系统无需授权精确闹钟")
             }
         }
-        binding.btnSave.setOnClickListener {
-            saveScript()
-            toast("已保存")
+        binding.btnNew.setOnClickListener {
+            val meta = repository.create("新脚本", ScriptRepository.DEFAULT_SCRIPT)
+            refresh()
+            openEditor(meta.id)
         }
-        binding.btnRun.setOnClickListener {
-            saveScript()
-            if (!isAccessibilityEnabled()) {
-                toast("请先开启无障碍服务")
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                return@setOnClickListener
-            }
-            ScriptService.start(this, store.read())
-        }
-        binding.btnStop.setOnClickListener {
-            ScriptService.stop(this)
-        }
-        binding.btnDump.setOnClickListener {
-            if (!isAccessibilityEnabled()) {
-                toast("请先开启无障碍服务")
-                return@setOnClickListener
-            }
-            ScriptService.start(this, "dump();")
-        }
-        binding.btnSchedule.setOnClickListener {
-            saveSchedule()
-        }
-        binding.scheduleSwitch.setOnCheckedChangeListener { _, checked ->
-            if (!checked) {
-                SchedulePrefs.setEnabled(this, false)
-                ScriptScheduler.cancel(this)
-                updateStatus()
-            }
+        binding.btnImport.setOnClickListener {
+            importLauncher.launch(arrayOf("*/*"))
         }
     }
 
-    private fun observeState() {
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    RunLog.text.collect { text ->
-                        binding.logText.text = text
-                        binding.logScroll.post {
-                            binding.logScroll.fullScroll(View.FOCUS_DOWN)
-                        }
-                    }
-                }
-                launch {
-                    RunState.running.collect { running ->
-                        binding.btnRun.isEnabled = !running
-                        binding.btnStop.isEnabled = running
-                        binding.btnDump.isEnabled = !running
-                    }
-                }
-            }
-        }
+    private fun refresh() {
+        val scripts = repository.list()
+        adapter.submit(scripts)
+        binding.emptyText.visibility = if (scripts.isEmpty()) View.VISIBLE else View.GONE
+        binding.scriptList.visibility = if (scripts.isEmpty()) View.GONE else View.VISIBLE
+        updateStatus(scripts)
     }
 
-    private fun saveScript() {
-        store.write(binding.scriptEditor.text.toString())
-    }
-
-    private fun loadSchedule() {
-        binding.scheduleTime.setText(
-            String.format(
-                Locale.US,
-                "%02d:%02d",
-                SchedulePrefs.hour(this),
-                SchedulePrefs.minute(this)
-            )
-        )
-        binding.scheduleSwitch.isChecked = SchedulePrefs.isEnabled(this)
-    }
-
-    private fun saveSchedule() {
-        val parsed = ScheduleTime.parseTime(binding.scheduleTime.text.toString())
-        if (parsed == null) {
-            toast("时间格式应为 HH:mm，例如 08:05")
-            return
-        }
-        val enabled = binding.scheduleSwitch.isChecked
-        SchedulePrefs.save(this, enabled, parsed.first, parsed.second)
-        if (enabled) {
-            ScriptScheduler.scheduleNext(this)
-            toast("已设置每天 ${String.format(Locale.US, "%02d:%02d", parsed.first, parsed.second)}")
+    private fun subtitle(meta: ScriptMeta): String {
+        val updated = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+            .format(Date(meta.updatedAt))
+        val scheduled = SchedulePrefs.isEnabled(this) && SchedulePrefs.scriptId(this) == meta.id
+        return if (scheduled) {
+            "修改于 $updated · 每天 ${timeText()}"
         } else {
-            ScriptScheduler.cancel(this)
-            toast("已关闭定时")
+            "修改于 $updated"
         }
-        updateStatus()
     }
 
-    private fun updateStatus() {
-        val accessibility = if (isAccessibilityEnabled()) "无障碍：已开启" else "无障碍：未开启"
+    private fun timeText(): String = String.format(
+        Locale.US,
+        "%02d:%02d",
+        SchedulePrefs.hour(this),
+        SchedulePrefs.minute(this)
+    )
+
+    private fun updateStatus(scripts: List<ScriptMeta>) {
+        val accessibility = if (AccessibilityUtils.isEnabled(this)) {
+            "无障碍：已开启"
+        } else {
+            "无障碍：未开启"
+        }
         val exactAlarm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val manager = getSystemService(android.app.AlarmManager::class.java)
+            val manager = getSystemService(AlarmManager::class.java)
             if (manager != null && manager.canScheduleExactAlarms()) {
                 "精确闹钟：可用"
             } else {
@@ -175,30 +152,140 @@ class MainActivity : AppCompatActivity() {
         } else {
             "精确闹钟：系统无需授权"
         }
-        val schedule = if (SchedulePrefs.isEnabled(this)) {
-            "定时：每天 ${
-                String.format(
-                    Locale.US,
-                    "%02d:%02d",
-                    SchedulePrefs.hour(this),
-                    SchedulePrefs.minute(this)
-                )
-            }"
+        val scheduledId = SchedulePrefs.scriptId(this)
+        val scheduled = scripts.firstOrNull { it.id == scheduledId }
+        val schedule = if (SchedulePrefs.isEnabled(this) && scheduled != null) {
+            "定时：每天 ${timeText()}（${scheduled.name}）"
         } else {
             "定时：未启用"
         }
         binding.statusText.text = "$accessibility\n$exactAlarm\n$schedule"
     }
 
-    private fun isAccessibilityEnabled(): Boolean {
-        val enabledServices = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        val expected = "$packageName/${AutomationService::class.java.name}"
-        return enabledServices.split(':').any {
-            it.equals(expected, ignoreCase = true) ||
-                it.endsWith(AutomationService::class.java.name)
+    private fun openEditor(id: String) {
+        startActivity(
+            Intent(this, EditorActivity::class.java)
+                .putExtra(EditorActivity.EXTRA_SCRIPT_ID, id)
+        )
+    }
+
+    private fun showMenu(meta: ScriptMeta, anchor: View) {
+        val popup = PopupMenu(this, anchor)
+        popup.menu.add(0, 1, 0, "重命名")
+        popup.menu.add(0, 2, 1, "删除")
+        popup.menu.add(0, 3, 2, "导出")
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> {
+                    showRenameDialog(meta)
+                    true
+                }
+
+                2 -> {
+                    confirmDelete(meta)
+                    true
+                }
+
+                3 -> {
+                    pendingExportId = meta.id
+                    exportLauncher.launch("${meta.name}.js")
+                    true
+                }
+
+                else -> false
+            }
+        }
+        popup.show()
+    }
+
+    private fun showRenameDialog(meta: ScriptMeta) {
+        val input = EditText(this).apply {
+            setText(meta.name)
+            setSelection(text.length)
+            setPadding(48, 24, 48, 0)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("重命名")
+            .setView(input)
+            .setPositiveButton("确定") { _, _ ->
+                if (repository.rename(meta.id, input.text.toString())) {
+                    refresh()
+                    toast("已重命名")
+                } else {
+                    toast("名称不能为空")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun confirmDelete(meta: ScriptMeta) {
+        AlertDialog.Builder(this)
+            .setTitle("删除脚本")
+            .setMessage("确定删除「${meta.name}」？")
+            .setPositiveButton("删除") { _, _ ->
+                repository.delete(meta.id)
+                if (SchedulePrefs.scriptId(this) == meta.id) {
+                    SchedulePrefs.setEnabled(this, false)
+                    SchedulePrefs.setScriptId(this, null)
+                    ScriptScheduler.cancel(this)
+                }
+                refresh()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun importScript(uri: Uri) {
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { importFromUri(uri) }
+            result.onSuccess { meta ->
+                refresh()
+                openEditor(meta.id)
+            }.onFailure {
+                toast("导入失败：${it.message}")
+            }
+        }
+    }
+
+    private fun importFromUri(uri: Uri): Result<ScriptMeta> = runCatching {
+        val displayName = contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+        val content = contentResolver.openInputStream(uri)
+            ?.bufferedReader()
+            ?.use { it.readText() }
+            ?: error("无法读取文件")
+        if (content.length > MAX_IMPORT_CHARS) error("文件超过 1 MB")
+        if (content.contains('\u0000')) error("不是文本文件")
+        val name = ScriptNaming.fromFileName(displayName ?: "导入脚本")
+        repository.create(name, content)
+    }
+
+    private fun exportScript(uri: Uri) {
+        val scriptId = pendingExportId ?: return
+        pendingExportId = null
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val content = repository.read(scriptId) ?: error("脚本不存在")
+                    contentResolver.openOutputStream(uri)
+                        ?.bufferedWriter()
+                        ?.use { it.write(content) }
+                        ?: error("无法写入文件")
+                }
+            }
+            result.onSuccess {
+                toast("已导出")
+            }.onFailure {
+                toast("导出失败：${it.message}")
+            }
         }
     }
 
@@ -215,5 +302,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(KEY_PENDING_EXPORT, pendingExportId)
+    }
+
+    private companion object {
+        const val MAX_IMPORT_CHARS = 1_000_000
+        const val KEY_PENDING_EXPORT = "pending_export_id"
     }
 }
