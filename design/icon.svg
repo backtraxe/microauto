@@ -8,13 +8,7 @@
 
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
 
-  <path d="M174 350 C238 350 258 190 330 190"
-        fill="none" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round"/>
-  <path d="M310 154 L374 190 L310 226 L324 190 Z" fill="#FFFFFF"/>
-  <path d="M249 270 C280 286 296 306 312 311"
-        fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
-  <circle cx="249" cy="270" r="13" fill="#FFFFFF"/>
-
-  <circle cx="154" cy="350" r="20" fill="none" stroke="#FFFFFF" stroke-width="10"/>
-  <circle cx="326" cy="311" r="14" fill="none" stroke="#FFFFFF" stroke-width="9"/>
+  <path d="M190 350 H320 A32.5 32.5 0 0 1 320 285 H190 A32.5 32.5 0 0 1 190 220 H320 A32.5 32.5 0 0 1 320 155 H190"
+        fill="none" stroke="#FFFFFF" stroke-width="34"
+        stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
