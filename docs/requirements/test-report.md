@@ -252,3 +252,164 @@ adb shell am start -n com.microauto/.ui.MainActivity
 - Lint 0 error（仅既有 `core-ktx` 版本提示），`assembleDebug` 通过
 - 5.5（空备份策略）保持产品取舍，未改动
 - 结论：原报告中的中级/低级问题已关闭，无已知阻断项
+
+---
+
+## 9. 第二批验收（SEC-004 / R1 / R2）
+
+- 测试日期：2026-10-21
+- 代码基线：v0.8.1 + 工作区未提交改动（SEC-004 / R1 / R2）
+- 范围：SEC-004（运行通知与 `dump()` 脱敏）、R1（运行环境引导与定时健康提示）、R2（首页行内运行）
+- 测试角色：独立 QA；只读审查生产代码，仅新增/加强测试；未修改生产代码，未 commit / tag / push
+
+### 9.1 环境与命令
+
+环境同第 1 节：macOS（Apple Silicon）、JDK 17、Gradle 8.11.1 / AGP 8.10.1 / Kotlin 2.1.20、Android SDK platform 36 / build-tools 36.0.0、AVD `microauto_api35`（API 35，arm64-v8a）。
+
+```bash
+./gradlew :app:testDebugUnitTest
+./gradlew :app:lintDebug
+./gradlew :app:assembleDebug
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+./scripts/run-emulator-tests.sh   # 完整跑两轮
+```
+
+### 9.2 结果汇总
+
+| 套件 | 数量 | 失败 | 错误 | 跳过 | 结论 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| JVM 单元测试（21 个类） | 136 | 0 | 0 | 0 | 通过 |
+| 仪器化测试（API 35，9 个类） | 69 | 0 | 0 | 0 | 连续两轮 69/69 通过 |
+| Android Lint | — | — | — | — | 0 errors，1 warning（既有 `core-ktx` 版本提示） |
+| Debug 构建 | — | — | — | — | 成功，`app/build/outputs/apk/debug/MicroAuto-0.8.1.apk` |
+
+- JVM：`134` 项原有/开发者自测 + `2` 项本次新增（`NodeDumpTest` 1、`RunStateTest` 1）= `136`。
+- 仪器化分布：`SchedulePrefsTest 6`、`RunNotificationsInstrumentedTest 2`、`ScriptBackupRestoreTest 10`、`ScriptRepositoryPathTest 1`、`ScriptRepositoryTest 15`、`DialogLifecycleTest 4`、`EditorActivityTest 16`、`MainActivityTest 14`、`VersionsActivityTest 1`。
+- 仪器化首轮（加入新测试后）69 项中 1 项失败，是**本次新增测试**的断言错误：`menuOnlyExposesUnifiedEnvironmentEntry` 断言菜单标题等于「定时」，实际运行时标题为「定时：未启用」；改为 `startsWith("定时")` 后，连续两轮 69/69，产品代码零失败。其余 68 项在三个完整/半完整轮次中均通过，未观察到 flaky。
+- Lint 唯一 warning 仍是 `app/build.gradle.kts:104` 的 `GradleDependency`（`androidx.core:core-ktx 1.18.0` → `1.19.1`），与本次改动无关。
+
+### 9.3 逐项验收
+
+#### SEC-004（P1）运行通知与 dump 脱敏
+
+**结论：通过（核心承诺），有 2 项加固建议。**
+
+- 通知正文：`RunNotifications.notifyResult()` 只使用 `resultText(scriptName, success)`（脚本名 + 「运行完成/失败」）；`notifySkipped()` / `notifyFailure()` 只拼接脚本名与调用方给出的原因/错误；`RunNotifications` 已不再引用 `RunLog`，`ScriptService.finishRun()` 只传 `runningName`（`app/src/main/java/com/microauto/script/RunNotifications.kt:27-55`、`ScriptService.kt:107-115`）。不存在从日志取正文的路径。
+- 可见性：结果、跳过、失败三类通知全部经过同一个私有 `notify()`，统一设置 `VISIBILITY_SECRET` 与 `setLocalOnly(true)`（`RunNotifications.kt:57-77`）。仪器化测试 `resultNotificationIsSecretLocalAndLogFree`、`skippedAndFailureNotificationsAreSecretAndLogFree` 读取 `NotificationManager.activeNotifications`，断言 `visibility == VISIBILITY_SECRET`、`NotificationCompat.getLocalOnly == true`，并断言正文不含预先写入 `RunLog` 的 `secret-screen-text`。
+- `dump()` 打码：`NodeDump` 对 `isPassword` 节点输出 `text=<hidden>`，递归覆盖整棵树；普通节点的 `text`、`desc`、`bounds` 保持原样（`app/src/main/java/com/microauto/core/NodeDump.kt:11-25`；`NodeDumpTest` 3/3，含嵌套密码节点）。
+- **未覆盖项**：`desc` 未打码（9.5.2）；前台服务通知未设置 SECRET/localOnly（9.5.3）；`dump()` 仍写入 `latest.log`，未提供关闭日志开关（9.5.4）。
+
+#### R1（P0）运行环境引导与定时健康提示
+
+**结论：通过（自动化覆盖主要状态与入口），设置页跳转/返回链路需手工验收。**
+
+- 提示条：`updateSetupBanner()` 的优先级为「无障碍未开启」→「已开启 + 有启用定时 + 精确闹钟不可用」→ 隐藏；文案、图标、按钮与需求一致；`onResume` 重新计算；无障碍从关到开时在底部导航上方显示 Snackbar（`app/src/main/java/com/microauto/ui/MainActivity.kt:156-166,489-553`）。测试覆盖：无障碍未开时提示条可见、文案正确；点击提示条打开环境面板。
+- 环境面板：四行状态、按钮 enabled 与系统 API 一致；测试在运行时用同一套 `AccessibilityUtils` / `POST_NOTIFICATIONS` / `canScheduleExactAlarms` / `isIgnoringBatteryOptimizations` 计算期望值并逐行断言（`MainActivityTest.environmentSheetStatusMatchesSystem`）。四行标题、48dp 按钮与布局符合需求（`sheet_environment.xml`）。
+- 菜单：只保留统一的「运行环境」+「定时」等 7 项；旧「无障碍 / 精确闹钟 / 省电」菜单项与字符串已删除；测试直接断言 `toolbar.menu` 中不存在这三个前缀的标题。
+- 编辑页拦截：无障碍未开启点「运行」弹出解释对话框（标题、正文、「去开启」「取消」）；取消后对话框消失且停留在编辑页（`EditorActivityTest.runWithoutAccessibilityShowsExplanationDialog`）。「去开启」会启动系统无障碍设置，返回后由 `awaitingAccessibilityRun` 触发一次 Snackbar +「运行」操作（`EditorActivity.kt:209-218,634-657`），代码审查确认标志只置位/复位一次；该链路未自动化（见 9.6）。
+- 定时 sheet：开关打开且精确闹钟不可用时显示「精确闹钟未授权，定时可能延迟」+「去授权」，关闭开关后隐藏；保存 Toast 带「可能延迟」（`EditorActivity.kt:1020-1035,1065-1080`；`EditorActivityTest.scheduleSheetWarnsWhenExactAlarmMissing` 断言显示与隐藏两种状态）。
+- **窗口生命周期**：环境面板与运行拦截对话框未在 `onDestroy` 释放，logcat 出现 `WindowLeaked`（9.5.1）。
+
+#### R2（P0）首页行内运行
+
+**结论：通过（UI 状态与事件路径），真实服务启动/停止需手工或后续仪器化验证。**
+
+- `RunState`：新增 `activeScriptId`，`start()` 同时置 running 与 id，`finish()`/`setRunning(false)` 清空（`app/src/main/java/com/microauto/script/RunState.kt:13-26`）。`ScriptService` 在接受运行后 `RunState.start(scriptId)`（`ScriptService.kt:87`），`finishRun()`、`stopRun()`、`onDestroy()` 均调用 `RunState.finish()`（`ScriptService.kt:107-126,181-188`）；`ScriptRunner` 的 `finally` 也 `setRunning(false)`（`ScriptRunner.kt:61-66`）。`RunStateTest` 覆盖 start/finish/setRunning(false)/重复 start/finish。
+- 行内按钮：`LibraryAdapter` 动态设置 48dp 播放按钮的可见性、enabled 与 contentDescription；运行行显示 16dp 进度圈并隐藏按钮，其他行禁用并读作「已有脚本在运行」（`app/src/main/java/com/microauto/ui/LibraryAdapter.kt:39-57,102-121`；`item_script.xml`）。
+- 点击路径：按钮独立 `OnClickListener`，父卡片仍负责进入编辑页；Espresso 断言点击行内按钮后 `scriptEditor` 不存在、脚本内容未被修改（`MainActivityTest.inlineRunButtonExplainsMissingAccessibility`）。
+- 运行态：`MainActivityTest.runningStateShowsSpinnerAndDisablesOtherRows` 直接设置 `RunState`，断言运行行进度圈可见、按钮隐藏、描述含脚本名，空闲行按钮禁用且描述为「已有脚本在运行」；`RunState.finish()` 后重新绑定恢复。
+- **风险**：`activeScriptId` 与既有 SEC-008 生命周期竞态共存，旧运行的收尾可能清掉新运行的状态（9.5.6）。
+
+### 9.4 新增 / 加强的测试
+
+| 文件 | 数量 | 内容 |
+| --- | ---: | --- |
+| `app/src/androidTest/java/com/microauto/ui/DialogLifecycleTest.kt` | 4（新增） | 环境面板、Main/Editor 运行拦截对话框、定时 sheet 在 Activity 关闭后不残留 |
+| `app/src/androidTest/java/com/microauto/script/RunNotificationsInstrumentedTest.kt` | 2（新增） | 结果/跳过/失败通知的 `VISIBILITY_SECRET`、`localOnly`、正文不含 `RunLog` |
+| `app/src/androidTest/java/com/microauto/ui/MainActivityTest.kt` | +3 | 环境面板状态与按钮、提示条打开面板、菜单旧入口已移除 |
+| `app/src/test/java/com/microauto/core/NodeDumpTest.kt` | +1 | 嵌套密码节点全部打码；普通节点 `desc` 保持 |
+| `app/src/test/java/com/microauto/script/RunStateTest.kt` | +1 | 重复 `start` 覆盖 id、`finish` 幂等 |
+| `app/src/androidTest/java/com/microauto/ui/EditorActivityTest.kt` | 加强 2 | 取消后对话框消失；定时警告随开关隐藏 |
+
+说明：`DialogLifecycleTest` 的 4 个用例在 API 35 上均通过（旧窗口不会遮挡后续交互），但 logcat 同时记录了 `WindowLeaked`，说明“行为通过”不代表窗口被正确释放（见 9.5.1）。
+
+### 9.5 发现的问题
+
+#### 9.5.1（中）环境面板与两个运行拦截对话框未在 `onDestroy` 释放，logcat 记录 `WindowLeaked`
+
+**证据：**
+
+- `MainActivity.showEnvironmentSheet()` 使用局部 `BottomSheetDialog`，无字段跟踪、无 `onDestroy` 关闭（`app/src/main/java/com/microauto/ui/MainActivity.kt:274-318`，`dialog.show()` 在 317 行）。
+- `MainActivity.showAccessibilityRequiredDialog()` 与 `EditorActivity.showAccessibilityRequiredDialog()` 同样使用局部 `MaterialAlertDialogBuilder(...).show()`（`MainActivity.kt:777-785`、`EditorActivity.kt:648-657`）。
+- 对照：`EditorActivity.onDestroy()` 会 dismiss `scheduleDialog`、`findDialog`、`renameDialog`（`EditorActivity.kt:230-236`），`DialogLifecycleTest.scheduleSheetIsDismissedWithActivity` 的 logcat 中没有 `WindowLeaked`。
+- 两轮完整仪器化测试的 logcat 均出现：
+  - `WindowLeaked: Activity com.microauto.ui.MainActivity has leaked window ... at com.microauto.ui.MainActivity.showEnvironmentSheet(MainActivity.kt:317)`
+  - `WindowLeaked: ... at com.microauto.ui.MainActivity.showAccessibilityRequiredDialog(MainActivity.kt:785)`
+  - `WindowLeaked: ... at com.microauto.ui.EditorActivity.showAccessibilityRequiredDialog(EditorActivity.kt:657)`
+
+**影响：** 与上一轮“重命名对话框残留导致测试失焦”属于同一类窗口生命周期问题。当前用例仍能通过（系统会移除旧窗口），但窗口泄漏日志、慢设备/配置变化下的焦点竞争、以及未来测试顺序变化都可能再次触发失焦；不应依赖系统兜底。
+
+**建议：** 按 `renameDialog` / `scheduleDialog` 的既有模式，为三个对话框增加字段与 `setOnDismissListener`，在 `EditorActivity.onDestroy` / `MainActivity.onDestroy` 中 dismiss；或改用 `DialogFragment`。测试侧已在 `DialogLifecycleTest` 中保留回归保护。
+
+#### 9.5.2（低）`NodeDump` 只打码 `text`，未打码 `desc`
+
+- `NodeDump.kt:14` 对密码节点的 `text` 输出 `<hidden>`，但 `NodeDump.kt:19` 仍原样输出 `node.desc`。
+- 复现（临时 JVM 探针，已删除）：`NodeDump.format(FakeNode(className="android.widget.EditText", text="hunter2", desc="hunter2", isPassword=true))` 输出：
+  `android.widget.EditText id=- text=<hidden> desc=hunter2 clickable=false bounds=-`
+- 影响：密码值通常位于 `text`，但若某些 App 把敏感内容放在 `contentDescription`，仍会进入 `dump()`/`latest.log`。属低概率泄露。
+- 建议：`isPassword` 时同时输出 `desc=<hidden>`（或复用同一个 `<hidden>` 标记），并补一条 `NodeDumpTest`。
+
+#### 9.5.3（低）前台服务通知未设置 `VISIBILITY_SECRET` / `localOnly`
+
+- 结果/跳过/失败通知走 `RunNotifications.notify()`，已设置 `VISIBILITY_SECRET` + `setLocalOnly(true)`；但前台服务常驻通知由 `ScriptService.buildNotification()` 单独构建，未设置这两项（`app/src/main/java/com/microauto/script/ScriptService.kt:141-162`）。
+- 该通知正文只有「正在运行：<脚本名>」，不含屏幕/日志内容；但锁屏上会显示脚本名，若脚本名本身含账号/用途等敏感信息，仍有轻度暴露。
+- 建议：与结果通知保持一致，设置 `VISIBILITY_SECRET` + `setLocalOnly(true)`。
+
+#### 9.5.4（提示）SEC-004 的日志策略未完成
+
+- `dump()` 仍通过 prelude 的 `log()` 写入 `RunLog` / `latest.log`；没有“关闭日志”设置或退出清理。审计的完整验收包含“关闭日志后 `latest.log` 不写入内容”，本次承诺只覆盖密码打码与通知脱敏。
+- 非密码屏幕文本（聊天、验证码之外的普通内容）仍会长期保存在私有目录；`allowBackup=false` 降低了外泄面，但取证/误分享日志时仍有风险。
+- 建议：后续增加日志开关或启动清理策略；在 UI/教程中说明日志可能包含屏幕内容。
+
+#### 9.5.5（提示）R1/R2 的关键人工路径未自动化
+
+- R1：`去开启` / `去授权` / `去设置` 跳转系统设置、返回后的 Snackbar「无障碍服务已开启」+「运行」、提示条的「定时可能延迟」变体（需无障碍已开启 + 有启用定时 + 精确闹钟缺失）、TalkBack 与 2 倍字体布局均未自动化；本次只验证了对话框/面板的展示、取消和状态计算。
+- R2：真实 `ScriptService` 启动/停止（需要无障碍开启）未在仪器化中执行；`activeScriptId` 的清理通过单元测试与代码审查验证，未覆盖实际服务生命周期。
+
+#### 9.5.6（提示）`activeScriptId` 继承 SEC-008 生命周期竞态
+
+- `ScriptService` 旧运行的 `finally` 仍可能在新运行启动后调用 `finishRun()`/`onDestroy()`，从而 `RunState.finish()` 清掉新运行的 `activeScriptId`，导致首页进度圈提前消失、其他行提前恢复（`ScriptService.kt:91-98,107-126,181-188`）。
+- SEC-008（服务生命周期 token）不在本批范围；R2 让该竞态的 UI 表现更明显，建议在 SEC-008 修复时一并覆盖服务级 start/stop/start 测试。
+
+### 9.6 未覆盖 / 需人工验收的风险
+
+- **系统设置往返**：无障碍、精确闹钟、通知权限、电池优化的系统页跳转与返回后的状态刷新/Snackbar 去重，需要真机或手工验收；本次只验证按钮/行存在与对话框行为。
+- **提示条定时变体**：模拟器未开启无障碍，无法稳定进入「定时可能延迟」分支；需在已开启无障碍且存在启用定时的设备上验收。
+- **真实运行链路**：R2 的 `ScriptService` 启动、运行中、停止、超时、进程被杀后的 `activeScriptId` 清理未做设备级压测；SEC-008 竞态未验证。
+- **可访问性**：TalkBack 对行内运行按钮/进度圈、环境面板四行按钮、保存菜单 contentDescription 的播报，2 倍字体下的布局均未人工验收。
+- **通知**：不同厂商 ROM 对 `VISIBILITY_SECRET`/`localOnly` 的呈现、无通知权限时的行为未验证；前台服务通知的锁屏显示未验证。
+- **范围外**：SEC-006（大文件）、SEC-007（主线程 IO）、SEC-008（服务生命周期）、SEC-009（BootReceiver）、SEC-010（release 签名）、SEC-011（正则 DoS）仍未验证。
+
+### 9.7 结论与上线建议
+
+- **SEC-004 / R1 / R2 的核心承诺均通过**：结果通知不再包含任何 `RunLog` 文本，三类通知统一 `VISIBILITY_SECRET` + `localOnly`；`dump()` 对密码 `text` 打码；环境提示条/面板/菜单合并/编辑页拦截/定时警告可用；首页行内运行、进度圈、其他行禁用与 `activeScriptId` 清理有测试与代码证据。
+- 发现的 1 项中等级问题是**窗口生命周期**（9.5.1），当前测试不失败但 logcat 有 `WindowLeaked`，与上一轮已修复的焦点泄漏同类，建议在合并前或下个补丁按既有模式修复；其余 2 项低级为密码 `desc` 与前台通知加固，2 项提示为日志策略与人工验收缺口。
+- **建议上线**（附条件：修复 9.5.1 的 `onDestroy` 释放；将 9.5.2/9.5.3 纳入后续加固；发布前补一次系统设置往返、TalkBack 与 2 倍字体人工验收）。
+
+### 附：第二轮测试轮次记录
+
+| 阶段 | JVM | 仪器化 | 说明 |
+| --- | --- | --- | --- |
+| 基线复核 | 134/134 | —（开发者自测 60） | JVM 强制重跑；仪器化未单独跑基线 |
+| 新增测试后首轮 | 136/136 | 69，1 失败 | 失败为我的菜单标题断言（「定时」实际为「定时：未启用」），修正 |
+| 完整第 A 轮 | — | 69/69 | `run-emulator-tests.sh` |
+| 完整第 B 轮 | — | 69/69 | `run-emulator-tests.sh`，未见 flaky |
+| 最终 lint/assemble | — | — | 0 errors / 1 warning；`MicroAuto-0.8.1.apk` |
+
+### 9.8 修复复核
+
+- 9.5.1（中，窗口泄漏）已修复：`MainActivity` 持有运行环境面板与运行拦截对话框，`EditorActivity` 持有运行拦截对话框，均在 `onDestroy` 中 `dismiss()` 并通过 `setOnDismissListener` 置空；`DialogLifecycleTest` 4 项通过，最终仪器化 logcat 无 `WindowLeaked`。
+- 9.5.2（低，密码 desc）已修复：`NodeDump` 对密码节点同时输出 `text=<hidden>` 与 `desc=<hidden>`，`NodeDumpTest` 覆盖。
+- 9.5.3（低，前台通知）已修复：`ScriptService` 常驻通知增加 `VISIBILITY_SECRET` + `localOnly`。
+- 复核结果：JVM 单元测试 **137/137**，仪器化 **69/69**，Lint 0 error（1 既有警告），`assembleDebug` 通过。
+- 仍未覆盖：关闭日志设置、系统设置往返、TalkBack/大字号、SEC-008 生命周期竞态（均按约定留待后续）。

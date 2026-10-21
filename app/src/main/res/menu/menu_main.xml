@@ -2,18 +2,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/action_accessibility"
-        android:title="@string/menu_accessibility"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_alarm"
-        android:title="@string/menu_exact_alarm"
-        app:showAsAction="never" />
-
-    <item
-        android:id="@+id/action_battery"
-        android:title="@string/menu_battery"
+        android:id="@+id/action_environment"
+        android:title="@string/menu_environment"
         app:showAsAction="never" />
 
     <item

@@ -9,7 +9,7 @@ import com.microauto.accessibility.AndroidNode
 import com.microauto.accessibility.AutomationService
 import com.microauto.accessibility.GestureController
 import com.microauto.accessibility.NodeActions
-import com.microauto.core.NodeLike
+import com.microauto.core.NodeDump
 import com.microauto.core.SelectorMatcher
 import com.microauto.script.RunLog
 import com.microauto.script.ScriptExitException
@@ -119,28 +119,10 @@ class AutomationBridge(
     fun dump(): String {
         checkDeadline()
         val root = service.rootNode() ?: return "无法获取当前窗口：无障碍服务未连接或界面不可读"
-        val builder = StringBuilder()
-        dumpNode(AndroidNode(root), builder, 0)
-        return builder.toString()
+        return NodeDump.format(AndroidNode(root))
     }
 
     fun exit(): Boolean = throw ScriptExitException()
-
-    private fun dumpNode(node: NodeLike, builder: StringBuilder, depth: Int) {
-        if (depth > MAX_DUMP_DEPTH || builder.length > MAX_DUMP_CHARS) return
-        val indent = "  ".repeat(depth)
-        val text = node.text?.replace("\n", "\\n")
-        builder.append(indent)
-            .append(node.className ?: "?")
-            .append(" id=").append(node.viewId ?: "-")
-            .append(" text=").append(text ?: "-")
-            .append(" desc=").append(node.desc ?: "-")
-            .append(" clickable=").append(node.clickable)
-            .append(" bounds=")
-            .append(node.bounds?.let { "[${it.left},${it.top}][${it.right},${it.bottom}]" } ?: "-")
-            .append('\n')
-        node.children.forEach { dumpNode(it, builder, depth + 1) }
-    }
 
     private fun checkDeadline() {
         if (System.currentTimeMillis() > deadline) throw ScriptTimeoutException()
@@ -149,7 +131,5 @@ class AutomationBridge(
     private companion object {
         const val MAX_RUN_MILLIS = 10 * 60 * 1000L
         const val POLL_INTERVAL_MILLIS = 100L
-        const val MAX_DUMP_DEPTH = 30
-        const val MAX_DUMP_CHARS = 200_000
     }
 }

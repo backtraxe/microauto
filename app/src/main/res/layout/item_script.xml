@@ -44,6 +44,33 @@
                 android:textColor="?attr/colorOnSurfaceVariant" />
         </LinearLayout>
 
+        <FrameLayout
+            android:id="@+id/runAction"
+            android:layout_width="48dp"
+            android:layout_height="48dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRunScript"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:contentDescription="@string/action_run"
+                app:icon="@drawable/ic_play_arrow"
+                app:iconSize="20dp"
+                app:iconTint="?attr/colorPrimary" />
+
+            <com.google.android.material.progressindicator.CircularProgressIndicator
+                android:id="@+id/runSpinner"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="center"
+                android:indeterminate="true"
+                android:visibility="gone"
+                app:indicatorColor="?attr/colorPrimary"
+                app:indicatorSize="16dp"
+                app:trackThickness="2dp" />
+        </FrameLayout>
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/moreButton"
             style="@style/Widget.Material3.Button.IconButton"

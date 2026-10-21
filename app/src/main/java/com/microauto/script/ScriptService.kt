@@ -80,9 +80,11 @@ class ScriptService : Service() {
                     RunLog.append("[跳过] 已有脚本在运行")
                     return START_NOT_STICKY
                 }
+                val scriptId = intent.getStringExtra(EXTRA_SCRIPT_ID)
                 runningName = intent.getStringExtra(EXTRA_SCRIPT_NAME) ?: "脚本"
                 stoppedByUser = false
                 active = true
+                RunState.start(scriptId)
                 startForegroundCompat("正在运行：$runningName")
                 RunLog.clear()
                 acquireWakeLock()
@@ -104,7 +106,7 @@ class ScriptService : Service() {
 
     private fun finishRun(success: Boolean) {
         releaseWakeLock()
-        RunState.setRunning(false)
+        RunState.finish()
         stopForeground(STOP_FOREGROUND_REMOVE)
         if (!stoppedByUser) {
             RunNotifications.notifyResult(this, runningName, success)
@@ -118,7 +120,7 @@ class ScriptService : Service() {
         job?.cancel()
         ScriptRunner.cancel()
         releaseWakeLock()
-        RunState.setRunning(false)
+        RunState.finish()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -156,6 +158,8 @@ class ScriptService : Service() {
             .setContentIntent(contentIntent)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setOngoing(ongoing)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setLocalOnly(true)
             .addAction(android.R.drawable.ic_media_pause, "停止", stopPending)
             .build()
     }
@@ -181,7 +185,7 @@ class ScriptService : Service() {
         job?.cancel()
         ScriptRunner.cancel()
         releaseWakeLock()
-        RunState.setRunning(false)
+        RunState.finish()
         super.onDestroy()
     }
 }

@@ -1,5 +1,13 @@
 package com.microauto.ui
 
+import android.Manifest
+import android.app.AlarmManager
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.PowerManager
+import android.view.View
+import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -8,18 +16,30 @@ import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.replaceText
+import androidx.test.espresso.assertion.ViewAssertions.doesNotExist
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isDescendantOfA
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.isEnabled
+import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.android.material.appbar.MaterialToolbar
 import com.microauto.R
 import com.microauto.TestData
+import com.microauto.accessibility.AccessibilityUtils
 import com.microauto.script.BuiltinScripts
+import com.microauto.script.RunState
+import com.microauto.script.ScriptRepository
 import org.hamcrest.Matchers.allOf
 import org.hamcrest.Matchers.containsString
+import org.hamcrest.Matchers.not
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Assume
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,6 +52,11 @@ class MainActivityTest {
         TestData.reset()
     }
 
+    @After
+    fun tearDown() {
+        RunState.finish()
+    }
+
     @Test
     fun showsToolbarAndNav() {
         ActivityScenario.launch(MainActivity::class.java).use {
@@ -40,7 +65,7 @@ class MainActivityTest {
                 .check(matches(isDisplayed()))
             onView(withId(R.id.bottomNav)).check(matches(isDisplayed()))
             openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
-            onView(withText(containsString("无障碍"))).check(matches(isDisplayed()))
+            onView(withText(containsString("运行环境"))).check(matches(isDisplayed()))
             pressBack()
         }
     }
@@ -107,5 +132,178 @@ class MainActivityTest {
             onView(withText("工作")).check(matches(isDisplayed())).perform(click())
             onView(withText("这个文件夹是空的")).check(matches(isDisplayed()))
         }
+    }
+
+    @Test
+    fun environmentSheetShowsAllRows() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
+            onView(withText("运行环境")).perform(click())
+            onView(withText("无障碍服务（必须）")).check(matches(isDisplayed()))
+            onView(withText("通知权限（建议）")).check(matches(isDisplayed()))
+            onView(withText("精确闹钟（定时需要）")).check(matches(isDisplayed()))
+            onView(withText("电池优化（定时建议）")).check(matches(isDisplayed()))
+            pressBack()
+        }
+    }
+
+    @Test
+    fun setupBannerShowsWhenAccessibilityDisabled() {
+        Assume.assumeFalse(AccessibilityUtils.isEnabled(TestData.context()))
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.setupBanner)).check(matches(isDisplayed()))
+            onView(withText("无障碍服务未开启")).check(matches(isDisplayed()))
+            onView(withText("开启后才能查找控件、点击和运行脚本")).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun inlineRunButtonExplainsMissingAccessibility() {
+        Assume.assumeFalse(AccessibilityUtils.isEnabled(TestData.context()))
+        val script = ScriptRepository(TestData.context()).create("行内运行测试", "log(1);")
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withContentDescription("运行「行内运行测试」"))
+                .check(matches(isDisplayed()))
+                .perform(click())
+            onView(withText("需要开启无障碍服务")).check(matches(isDisplayed()))
+            onView(withText("取消")).perform(click())
+            onView(withId(R.id.scriptList)).check(matches(isDisplayed()))
+            onView(withId(R.id.scriptEditor)).check(doesNotExist())
+            assertEquals("log(1);", ScriptRepository(TestData.context()).read(script.id))
+        }
+    }
+
+    @Test
+    fun runningStateShowsSpinnerAndDisablesOtherRows() {
+        val repository = ScriptRepository(TestData.context())
+        repository.create("空闲脚本", "log(2);")
+        val script = repository.create("运行态测试", "log(1);")
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { RunState.start(script.id) }
+            Thread.sleep(300)
+            scenario.onActivity { activity ->
+                val list = activity.findViewById<RecyclerView>(R.id.scriptList)
+                val runningHolder = findHolder(list, "运行态测试") ?: error("运行行未显示")
+                val spinner = runningHolder.itemView.findViewById<View>(R.id.runSpinner)
+                val runningButton = runningHolder.itemView.findViewById<View>(R.id.btnRunScript)
+                assertTrue(spinner.isShown)
+                assertFalse(runningButton.isShown)
+                assertTrue(spinner.contentDescription.toString().contains("运行态测试"))
+
+                val idleHolder = findHolder(list, "空闲脚本") ?: error("空闲行未显示")
+                val idleButton = idleHolder.itemView.findViewById<View>(R.id.btnRunScript)
+                assertFalse(idleButton.isEnabled)
+                assertEquals("已有脚本在运行", idleButton.contentDescription.toString())
+            }
+            scenario.onActivity { RunState.finish() }
+        }
+    }
+
+    @Test
+    fun environmentSheetStatusMatchesSystem() {
+        val context = TestData.context()
+        val accessibilityEnabled = AccessibilityUtils.isEnabled(context)
+        val notificationSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        val notificationGranted = !notificationSupported || ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+        val alarmSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        val alarmAvailable = alarmSupported &&
+            context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
+        val ignoringBattery = context.getSystemService(PowerManager::class.java)
+            ?.isIgnoringBatteryOptimizations(context.packageName) == true
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            openActionBarOverflowOrOptionsMenu(context)
+            onView(withText("运行环境")).perform(click())
+
+            onView(withId(R.id.accessibilityStatus)).check(
+                matches(withText(if (accessibilityEnabled) "已开启" else "未开启"))
+            )
+            onView(withId(R.id.notificationStatus)).check(
+                matches(
+                    withText(
+                        when {
+                            !notificationSupported -> "无需设置"
+                            notificationGranted -> "已允许"
+                            else -> "未允许"
+                        }
+                    )
+                )
+            )
+            onView(withId(R.id.alarmStatus)).check(
+                matches(
+                    withText(
+                        when {
+                            !alarmSupported -> "无需授权"
+                            alarmAvailable -> "可用"
+                            else -> "未授权"
+                        }
+                    )
+                )
+            )
+            onView(withId(R.id.batteryStatus)).check(
+                matches(withText(if (ignoringBattery) "已允许" else "未允许"))
+            )
+
+            onView(withId(R.id.btnAccessibility)).check(
+                matches(if (accessibilityEnabled) not(isEnabled()) else isEnabled())
+            )
+            onView(withId(R.id.btnNotification)).check(
+                matches(
+                    if (notificationSupported && !notificationGranted) {
+                        isEnabled()
+                    } else {
+                        not(isEnabled())
+                    }
+                )
+            )
+            onView(withId(R.id.btnAlarm)).check(
+                matches(if (alarmSupported) isEnabled() else not(isEnabled()))
+            )
+            pressBack()
+        }
+    }
+
+    @Test
+    fun setupBannerOpensEnvironmentSheet() {
+        Assume.assumeFalse(AccessibilityUtils.isEnabled(TestData.context()))
+        ActivityScenario.launch(MainActivity::class.java).use {
+            onView(withId(R.id.setupBanner)).perform(click())
+            onView(withText("无障碍服务（必须）")).check(matches(isDisplayed()))
+            pressBack()
+        }
+    }
+
+    @Test
+    fun menuOnlyExposesUnifiedEnvironmentEntry() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                val titles = (0 until toolbar.menu.size())
+                    .map { toolbar.menu.getItem(it).title.toString() }
+                assertTrue(titles.contains("运行环境"))
+                assertTrue(titles.any { it.startsWith("定时") })
+                assertFalse(titles.any { it.startsWith("无障碍") })
+                assertFalse(titles.any { it.startsWith("精确闹钟") })
+                assertFalse(titles.any { it.startsWith("省电") })
+            }
+        }
+    }
+
+    private fun findHolder(
+        list: RecyclerView,
+        name: String
+    ): RecyclerView.ViewHolder? {
+        val adapter = list.adapter ?: return null
+        for (position in 0 until adapter.itemCount) {
+            val holder = list.findViewHolderForAdapterPosition(position) ?: continue
+            val title = holder.itemView.findViewById<TextView>(R.id.nameText)
+                .text
+                ?.toString()
+            if (title == name) return holder
+        }
+        return null
     }
 }

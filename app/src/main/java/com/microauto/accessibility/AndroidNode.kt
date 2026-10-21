@@ -15,6 +15,7 @@ class AndroidNode(val info: AccessibilityNodeInfo) : NodeLike {
     override val clickable: Boolean get() = info.isClickable
     override val enabled: Boolean get() = info.isEnabled
     override val selected: Boolean get() = info.isSelected
+    override val isPassword: Boolean get() = info.isPassword
     override val bounds: Bounds?
         get() = runCatching {
             info.getBoundsInScreen(rect)

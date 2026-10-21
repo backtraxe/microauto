@@ -53,6 +53,33 @@
         android:layout_marginTop="12dp"
         android:text="@string/schedule_enable" />
 
+    <LinearLayout
+        android:id="@+id/alarmWarningRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/schedule_alarm_warning"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnGrantAlarm"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:minHeight="48dp"
+            android:text="@string/schedule_alarm_action" />
+    </LinearLayout>
+
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnSaveSchedule"
         android:layout_width="match_parent"

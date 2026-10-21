@@ -22,10 +22,29 @@
     <string name="action_backup">备份全部脚本</string>
     <string name="action_restore">恢复备份</string>
 
-    <string name="menu_accessibility">无障碍</string>
-    <string name="menu_exact_alarm">精确闹钟</string>
-    <string name="menu_battery">省电</string>
     <string name="menu_schedule">定时</string>
+    <string name="menu_environment">运行环境</string>
+
+    <string name="setup_accessibility_title">无障碍服务未开启</string>
+    <string name="setup_accessibility_hint">开启后才能查找控件、点击和运行脚本</string>
+    <string name="setup_accessibility_action">去开启</string>
+    <string name="setup_alarm_title">定时可能延迟</string>
+    <string name="setup_alarm_hint">精确闹钟未授权，定时任务可能晚触发</string>
+    <string name="setup_alarm_action">去授权</string>
+
+    <string name="environment_title">运行环境</string>
+    <string name="environment_description">脚本运行依赖无障碍服务；定时任务还依赖精确闹钟和后台运行权限。</string>
+    <string name="environment_accessibility">无障碍服务（必须）</string>
+    <string name="environment_notification">通知权限（建议）</string>
+    <string name="environment_alarm">精确闹钟（定时需要）</string>
+    <string name="environment_battery">电池优化（定时建议）</string>
+    <string name="environment_action_accessibility">去开启</string>
+    <string name="environment_action_notification">去允许</string>
+    <string name="environment_action_alarm">去授权</string>
+    <string name="environment_action_battery">去设置</string>
+
+    <string name="schedule_alarm_warning">精确闹钟未授权，定时可能延迟</string>
+    <string name="schedule_alarm_action">去授权</string>
 
     <string name="tab_scripts">脚本</string>
     <string name="tab_create">新建</string>

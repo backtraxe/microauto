@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -16,9 +17,11 @@ import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
@@ -26,15 +29,21 @@ import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import com.microauto.R
 import com.microauto.accessibility.AccessibilityUtils
 import com.microauto.core.DateFormats
 import com.microauto.core.ScriptNaming
 import com.microauto.databinding.ActivityMainBinding
 import com.microauto.databinding.DialogRenameBinding
+import com.microauto.databinding.SheetEnvironmentBinding
 import com.microauto.schedule.SchedulePrefs
 import com.microauto.schedule.ScriptScheduler
 import com.microauto.script.FolderMeta
@@ -45,6 +54,7 @@ import com.microauto.script.ScriptMeta
 import com.microauto.script.ScriptRepository
 import com.microauto.script.ScriptService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -54,6 +64,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var repository: ScriptRepository
     private lateinit var adapter: LibraryAdapter
     private var currentFolderId: String? = null
+    private var accessibilityWasEnabled = false
+    private var environmentDialog: BottomSheetDialog? = null
+    private var accessibilityDialog: AlertDialog? = null
     private val searchHandler = Handler(Looper.getMainLooper())
     private val searchRefresh = Runnable { refresh() }
 
@@ -101,11 +114,13 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.bottomNav) { _, insets -> insets }
 
         repository = ScriptRepository(this)
+        accessibilityWasEnabled = AccessibilityUtils.isEnabled(this)
         adapter = LibraryAdapter(
             onFolderClick = { openFolder(it) },
             onFolderMenu = { folder, anchor -> showFolderMenu(folder, anchor) },
             onScriptClick = { openEditor(it.id) },
             onScriptMenu = { meta, anchor -> showScriptMenu(meta, anchor) },
+            onScriptRun = { runScript(it) },
             subtitle = { subtitle(it) },
             schedule = { scheduleText(it) }
         )
@@ -119,6 +134,7 @@ class MainActivity : AppCompatActivity() {
             currentFolderId = null
         }
         setupUi()
+        observeRunState()
         binding.bottomNav.selectedItemId = savedTab
         if (savedTab == R.id.nav_tutorial) {
             showTutorialTab()
@@ -143,6 +159,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+        val enabled = AccessibilityUtils.isEnabled(this)
+        if (!accessibilityWasEnabled && enabled) {
+            Snackbar.make(binding.root, "无障碍服务已开启", Snackbar.LENGTH_LONG)
+                .setAnchorView(binding.navCard)
+                .show()
+        }
+        accessibilityWasEnabled = enabled
     }
 
     private fun showRepositoryHealth() {
@@ -158,18 +181,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupUi() {
         binding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
-                R.id.action_accessibility -> {
-                    openAccessibilitySettings()
-                    true
-                }
-
-                R.id.action_alarm -> {
-                    openExactAlarmSettings()
-                    true
-                }
-
-                R.id.action_battery -> {
-                    openBatterySettings()
+                R.id.action_environment -> {
+                    showEnvironmentSheet()
                     true
                 }
 
@@ -241,12 +254,137 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.tutorialContent.btnRestoreBuiltins.setOnClickListener { restoreBuiltins() }
+        binding.setupBanner.setOnClickListener { showEnvironmentSheet() }
         binding.btnEmptyNew.setOnClickListener { newScript() }
         binding.btnEmptyImport.setOnClickListener {
             importLauncher.launch(arrayOf("*/*"))
         }
         binding.btnEmptyFolder.setOnClickListener { newFolder() }
     }
+
+    private fun observeRunState() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                combine(RunState.running, RunState.activeScriptId) { running, scriptId ->
+                    running to scriptId
+                }.collect { (running, scriptId) ->
+                    adapter.setRunState(running, scriptId)
+                }
+            }
+        }
+    }
+
+    private fun showEnvironmentSheet() {
+        environmentDialog?.dismiss()
+        val sheetBinding = SheetEnvironmentBinding.inflate(layoutInflater)
+        val dialog = BottomSheetDialog(this)
+        dialog.setContentView(sheetBinding.root)
+        updateEnvironmentSheet(sheetBinding)
+
+        fun dismissAnd(action: () -> Unit) {
+            dialog.dismiss()
+            action()
+        }
+
+        sheetBinding.rowAccessibility.setOnClickListener {
+            dismissAnd { openAccessibilitySettings() }
+        }
+        sheetBinding.btnAccessibility.setOnClickListener {
+            dismissAnd { openAccessibilitySettings() }
+        }
+        sheetBinding.rowNotification.setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                !hasNotificationPermission()
+            ) {
+                dismissAnd { ensureNotificationPermission() }
+            }
+        }
+        sheetBinding.btnNotification.setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                !hasNotificationPermission()
+            ) {
+                dismissAnd { ensureNotificationPermission() }
+            }
+        }
+        sheetBinding.rowAlarm.setOnClickListener {
+            dismissAnd { openExactAlarmSettings() }
+        }
+        sheetBinding.btnAlarm.setOnClickListener {
+            dismissAnd { openExactAlarmSettings() }
+        }
+        sheetBinding.rowBattery.setOnClickListener {
+            dismissAnd { openBatterySettings() }
+        }
+        sheetBinding.btnBattery.setOnClickListener {
+            dismissAnd { openBatterySettings() }
+        }
+        environmentDialog = dialog
+        dialog.setOnDismissListener {
+            if (environmentDialog === dialog) environmentDialog = null
+        }
+        dialog.show()
+    }
+
+    private fun updateEnvironmentSheet(sheet: SheetEnvironmentBinding) {
+        val primaryAttr = androidx.appcompat.R.attr.colorPrimary
+        val mutedAttr = com.google.android.material.R.attr.colorOnSurfaceVariant
+        val errorAttr = androidx.appcompat.R.attr.colorError
+
+        val accessibilityEnabled = AccessibilityUtils.isEnabled(this)
+        setEnvironmentStatus(
+            sheet.accessibilityStatus,
+            if (accessibilityEnabled) "已开启" else "未开启",
+            if (accessibilityEnabled) primaryAttr else errorAttr
+        )
+        sheet.btnAccessibility.isEnabled = !accessibilityEnabled
+
+        val notificationSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        val notificationGranted = !notificationSupported || hasNotificationPermission()
+        setEnvironmentStatus(
+            sheet.notificationStatus,
+            when {
+                !notificationSupported -> "无需设置"
+                notificationGranted -> "已允许"
+                else -> "未允许"
+            },
+            if (notificationGranted) primaryAttr else mutedAttr
+        )
+        sheet.btnNotification.isEnabled = notificationSupported && !notificationGranted
+
+        val alarmSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        val alarmAvailable = alarmSupported &&
+            getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
+        setEnvironmentStatus(
+            sheet.alarmStatus,
+            when {
+                !alarmSupported -> "无需授权"
+                alarmAvailable -> "可用"
+                else -> "未授权"
+            },
+            if (!alarmSupported || alarmAvailable) primaryAttr else mutedAttr
+        )
+        sheet.btnAlarm.isEnabled = alarmSupported
+
+        val ignoringBattery = getSystemService(PowerManager::class.java)
+            ?.isIgnoringBatteryOptimizations(packageName) == true
+        setEnvironmentStatus(
+            sheet.batteryStatus,
+            if (ignoringBattery) "已允许" else "未允许",
+            if (ignoringBattery) primaryAttr else mutedAttr
+        )
+    }
+
+    private fun setEnvironmentStatus(view: TextView, text: String, colorAttr: Int) {
+        view.text = text
+        view.setTextColor(MaterialColors.getColor(view, colorAttr))
+    }
+
+    private fun hasNotificationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
 
     private fun showScriptsTab() {
         showPage(binding.scriptsPage, true)
@@ -345,31 +483,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateStatus() {
-        val menu = binding.toolbar.menu
-        menu.findItem(R.id.action_accessibility)?.title = if (AccessibilityUtils.isEnabled(this)) {
-            "无障碍：已开启"
-        } else {
-            "无障碍：未开启"
-        }
-        menu.findItem(R.id.action_alarm)?.title = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val manager = getSystemService(AlarmManager::class.java)
-            if (manager != null && manager.canScheduleExactAlarms()) {
-                "精确闹钟：可用"
-            } else {
-                "精确闹钟：未授权"
-            }
-        } else {
-            "精确闹钟：无需授权"
-        }
-        val powerManager = getSystemService(PowerManager::class.java)
-        val ignoringBattery = powerManager?.isIgnoringBatteryOptimizations(packageName) == true
-        menu.findItem(R.id.action_battery)?.title = if (ignoringBattery) {
-            "省电：已允许"
-        } else {
-            "省电：未允许"
-        }
         val schedules = SchedulePrefs.enabled(this)
-        menu.findItem(R.id.action_schedule)?.title = when {
+        binding.toolbar.menu.findItem(R.id.action_schedule)?.title = when {
             schedules.isEmpty() -> "定时：未启用"
             schedules.size == 1 -> {
                 val schedule = schedules.first()
@@ -378,6 +493,75 @@ class MainActivity : AppCompatActivity() {
             }
 
             else -> "定时：${schedules.size} 个脚本"
+        }
+        updateSetupBanner()
+    }
+
+    private fun updateSetupBanner() {
+        val accessibilityEnabled = AccessibilityUtils.isEnabled(this)
+        val exactAlarmUnavailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() != true
+        val hasEnabledSchedule = SchedulePrefs.enabled(this).isNotEmpty()
+        when {
+            !accessibilityEnabled -> {
+                binding.setupIcon.setImageResource(R.drawable.ic_warning)
+                binding.setupIcon.imageTintList = ColorStateList.valueOf(
+                    MaterialColors.getColor(
+                        binding.setupBanner,
+                        androidx.appcompat.R.attr.colorError
+                    )
+                )
+                binding.setupTitle.setText(R.string.setup_accessibility_title)
+                binding.setupHint.setText(R.string.setup_accessibility_hint)
+                binding.setupAction.setText(R.string.setup_accessibility_action)
+                binding.setupAction.setOnClickListener {
+                    openAccessibilitySettings()
+                }
+                setBannerVisible(true)
+            }
+
+            exactAlarmUnavailable && hasEnabledSchedule -> {
+                binding.setupIcon.setImageResource(R.drawable.ic_clock)
+                binding.setupIcon.imageTintList = ColorStateList.valueOf(
+                    MaterialColors.getColor(
+                        binding.setupBanner,
+                        androidx.appcompat.R.attr.colorPrimary
+                    )
+                )
+                binding.setupTitle.setText(R.string.setup_alarm_title)
+                binding.setupHint.setText(R.string.setup_alarm_hint)
+                binding.setupAction.setText(R.string.setup_alarm_action)
+                binding.setupAction.setOnClickListener {
+                    openExactAlarmSettings()
+                }
+                setBannerVisible(true)
+            }
+
+            else -> setBannerVisible(false)
+        }
+    }
+
+    private fun setBannerVisible(visible: Boolean) {
+        val banner = binding.setupBanner
+        banner.animate().cancel()
+        if (visible) {
+            if (!banner.isVisible) {
+                banner.alpha = 0f
+                banner.isVisible = true
+                banner.animate()
+                    .alpha(1f)
+                    .setDuration(160)
+                    .setInterpolator(DecelerateInterpolator())
+                    .start()
+            } else {
+                banner.alpha = 1f
+            }
+        } else if (banner.isVisible) {
+            banner.animate()
+                .alpha(0f)
+                .setDuration(160)
+                .withEndAction { banner.isVisible = false }
+                .start()
         }
     }
 
@@ -577,25 +761,42 @@ class MainActivity : AppCompatActivity() {
 
     private fun runScript(meta: ScriptMeta) {
         if (RunState.running.value) {
-            toast("已有脚本在运行")
+            Snackbar.make(binding.root, "已有脚本在运行", Snackbar.LENGTH_SHORT).show()
             return
         }
         if (!AccessibilityUtils.isEnabled(this)) {
-            toast("请先开启无障碍服务")
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            showAccessibilityRequiredDialog()
             return
         }
         val content = repository.read(meta.id)
         if (content == null) {
-            toast("脚本不存在")
+            Snackbar.make(binding.root, "脚本不存在，可能已被删除", Snackbar.LENGTH_SHORT).show()
+            refresh()
             return
         }
         ensureNotificationPermission()
         runCatching {
             ScriptService.start(this, meta.id, meta.name, content)
         }.onFailure {
-            toast("启动失败：${it.message}")
+            Snackbar.make(binding.root, "启动失败：${it.message}", Snackbar.LENGTH_LONG).show()
         }
+    }
+
+    private fun showAccessibilityRequiredDialog() {
+        accessibilityDialog?.dismiss()
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("需要开启无障碍服务")
+            .setMessage("MicroAuto 通过无障碍服务读取界面和执行点击。开启后返回即可运行当前脚本。")
+            .setPositiveButton("去开启") { _, _ ->
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            .setNegativeButton("取消", null)
+            .create()
+        accessibilityDialog = dialog
+        dialog.setOnDismissListener {
+            if (accessibilityDialog === dialog) accessibilityDialog = null
+        }
+        dialog.show()
     }
 
     private fun duplicateScript(meta: ScriptMeta) {
@@ -840,6 +1041,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         searchHandler.removeCallbacks(searchRefresh)
+        environmentDialog?.dismiss()
+        accessibilityDialog?.dismiss()
+        environmentDialog = null
+        accessibilityDialog = null
         super.onDestroy()
     }
 

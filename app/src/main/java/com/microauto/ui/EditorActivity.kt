@@ -1,6 +1,7 @@
 package com.microauto.ui
 
 import android.Manifest
+import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -31,6 +32,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.net.toUri
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.Lifecycle
@@ -94,12 +96,14 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var scriptName: String
     private var lastSavedContent = ""
     private var lastSavedAt = 0L
+    private var awaitingAccessibilityRun = false
     private var highlighter: JsSyntaxHighlighter? = null
     private var lastLineCount = 0
     private var undoManager: EditorUndoManager? = null
     private var scheduleDialog: BottomSheetDialog? = null
     private var findDialog: BottomSheetDialog? = null
     private var renameDialog: AlertDialog? = null
+    private var accessibilityDialog: AlertDialog? = null
     private var findSheet: SheetFindReplaceBinding? = null
     private var findMatches: List<FindMatch> = emptyList()
     private var findIndex = -1
@@ -206,6 +210,17 @@ class EditorActivity : AppCompatActivity() {
         })
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (!awaitingAccessibilityRun) return
+        awaitingAccessibilityRun = false
+        if (AccessibilityUtils.isEnabled(this)) {
+            Snackbar.make(binding.root, "无障碍服务已开启", Snackbar.LENGTH_LONG)
+                .setAction("运行") { binding.btnRun.performClick() }
+                .show()
+        }
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         if (::binding.isInitialized) {
@@ -217,6 +232,8 @@ class EditorActivity : AppCompatActivity() {
         scheduleDialog?.dismiss()
         findDialog?.dismiss()
         renameDialog?.dismiss()
+        accessibilityDialog?.dismiss()
+        accessibilityDialog = null
         undoManager?.stop()
         highlighter?.release()
         super.onDestroy()
@@ -593,18 +610,10 @@ class EditorActivity : AppCompatActivity() {
         binding.btnRun.setOnClickListener {
             if (!saveScript()) return@setOnClickListener
             if (!AccessibilityUtils.isEnabled(this)) {
-                toast("请先开启无障碍服务")
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                showAccessibilityRequiredDialog()
                 return@setOnClickListener
             }
-            ensureNotificationPermission()
-            ScriptService.start(
-                this,
-                scriptId,
-                scriptName,
-                binding.scriptEditor.text.toString()
-            )
-            showLogTab()
+            runCurrentScript()
         }
         binding.btnStop.setOnClickListener {
             ScriptService.stop(this)
@@ -626,6 +635,35 @@ class EditorActivity : AppCompatActivity() {
         binding.btnSchedule.setOnClickListener {
             showScheduleSheet()
         }
+    }
+
+    private fun runCurrentScript() {
+        ensureNotificationPermission()
+        ScriptService.start(
+            this,
+            scriptId,
+            scriptName,
+            binding.scriptEditor.text.toString()
+        )
+        showLogTab()
+    }
+
+    private fun showAccessibilityRequiredDialog() {
+        accessibilityDialog?.dismiss()
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("需要开启无障碍服务")
+            .setMessage("MicroAuto 通过无障碍服务读取界面和执行点击。开启后返回即可运行当前脚本。")
+            .setPositiveButton("去开启") { _, _ ->
+                awaitingAccessibilityRun = true
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            .setNegativeButton("取消", null)
+            .create()
+        accessibilityDialog = dialog
+        dialog.setOnDismissListener {
+            if (accessibilityDialog === dialog) accessibilityDialog = null
+        }
+        dialog.show()
     }
 
     private fun observeState() {
@@ -991,6 +1029,12 @@ class EditorActivity : AppCompatActivity() {
             }
         )
         sheetBinding.scheduleSwitch.isChecked = current?.enabled == true
+        val refreshAlarmWarning = {
+            sheetBinding.alarmWarningRow.isVisible =
+                sheetBinding.scheduleSwitch.isChecked && isExactAlarmUnavailable()
+        }
+        sheetBinding.scheduleSwitch.setOnCheckedChangeListener { _, _ -> refreshAlarmWarning() }
+        refreshAlarmWarning()
 
         val dialog = BottomSheetDialog(this)
         dialog.setContentView(sheetBinding.root)
@@ -1000,6 +1044,10 @@ class EditorActivity : AppCompatActivity() {
         dialog.window?.setSoftInputMode(
             WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
         )
+        sheetBinding.btnGrantAlarm.setOnClickListener {
+            dialog.dismiss()
+            openExactAlarmSettings()
+        }
         sheetBinding.btnSaveSchedule.setOnClickListener {
             val parsed = ScheduleTime.parseTime(
                 sheetBinding.scheduleTime.text?.toString().orEmpty()
@@ -1026,10 +1074,13 @@ class EditorActivity : AppCompatActivity() {
                 SchedulePrefs.clearPending(this, scriptId)
                 ScriptScheduler.scheduleScript(this, schedule)
                 ensureNotificationPermission()
+                val time = String.format(Locale.US, "%02d:%02d", parsed.first, parsed.second)
                 toast(
-                    "已设置每天 ${
-                        String.format(Locale.US, "%02d:%02d", parsed.first, parsed.second)
-                    }"
+                    if (isExactAlarmUnavailable()) {
+                        "已设置每天 $time；精确闹钟未授权，可能延迟"
+                    } else {
+                        "已设置每天 $time"
+                    }
                 )
             } else {
                 current?.let { ScriptScheduler.cancelScript(this, it) }
@@ -1048,6 +1099,23 @@ class EditorActivity : AppCompatActivity() {
         hour,
         minute
     )
+
+    private fun isExactAlarmUnavailable(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() != true
+
+    private fun openExactAlarmSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            startActivity(
+                Intent(
+                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                    "package:$packageName".toUri()
+                )
+            )
+        } else {
+            toast("当前系统无需授权精确闹钟")
+        }
+    }
 
     private fun ensureNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

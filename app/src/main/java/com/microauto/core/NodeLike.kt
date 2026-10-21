@@ -18,6 +18,7 @@ interface NodeLike {
     val clickable: Boolean
     val enabled: Boolean
     val selected: Boolean
+    val isPassword: Boolean get() = false
     val bounds: Bounds?
     val children: List<NodeLike>
 }

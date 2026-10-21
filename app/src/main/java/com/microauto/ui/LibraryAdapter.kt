@@ -3,6 +3,7 @@ package com.microauto.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.microauto.databinding.ItemFolderBinding
@@ -20,16 +21,39 @@ class LibraryAdapter(
     private val onFolderMenu: (FolderMeta, View) -> Unit,
     private val onScriptClick: (ScriptMeta) -> Unit,
     private val onScriptMenu: (ScriptMeta, View) -> Unit,
+    private val onScriptRun: (ScriptMeta) -> Unit,
     private val subtitle: (ScriptMeta) -> String,
     private val schedule: (ScriptMeta) -> String?
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private var items: List<LibraryItem> = emptyList()
+    private var running = false
+    private var runningScriptId: String? = null
 
     fun submit(list: List<LibraryItem>) {
         val diff = DiffUtil.calculateDiff(DiffCallback(items, list))
         items = list
         diff.dispatchUpdatesTo(this)
+    }
+
+    fun setRunState(running: Boolean, activeScriptId: String?) {
+        if (this.running == running && runningScriptId == activeScriptId) return
+        val wasRunning = this.running
+        val previousId = runningScriptId
+        this.running = running
+        runningScriptId = activeScriptId
+        if (wasRunning != running) {
+            notifyItemRangeChanged(0, itemCount)
+        } else {
+            indexOfScript(previousId)?.let { notifyItemChanged(it) }
+            indexOfScript(activeScriptId)?.let { notifyItemChanged(it) }
+        }
+    }
+
+    private fun indexOfScript(id: String?): Int? {
+        if (id == null) return null
+        val index = items.indexOfFirst { it is LibraryItem.Script && it.meta.id == id }
+        return index.takeIf { it >= 0 }
     }
 
     override fun getItemCount(): Int = items.size
@@ -78,7 +102,22 @@ class LibraryAdapter(
             } else {
                 subtitle(meta)
             }
+            val isThisRunning = running && runningScriptId == meta.id
+            binding.btnRunScript.isVisible = !isThisRunning
+            binding.btnRunScript.isEnabled = !running
+            binding.btnRunScript.contentDescription = when {
+                isThisRunning -> "「${meta.name}」正在运行"
+                running -> "已有脚本在运行"
+                else -> "运行「${meta.name}」"
+            }
+            binding.runSpinner.isVisible = isThisRunning
+            binding.runSpinner.contentDescription = if (isThisRunning) {
+                "「${meta.name}」正在运行"
+            } else {
+                null
+            }
             binding.root.setOnClickListener { onScriptClick(meta) }
+            binding.btnRunScript.setOnClickListener { onScriptRun(meta) }
             binding.moreButton.setOnClickListener { onScriptMenu(meta, it) }
         }
     }

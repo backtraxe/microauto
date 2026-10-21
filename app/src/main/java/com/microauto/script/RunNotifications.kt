@@ -25,18 +25,16 @@ object RunNotifications {
     }
 
     fun notifyResult(context: Context, scriptName: String, success: Boolean) {
-        val tail = RunLog.text.value.trim()
-            .lineSequence()
-            .lastOrNull { it.isNotBlank() }
-            .orEmpty()
-        val title = if (success) "运行完成" else "运行失败"
         notify(
             context = context,
             id = RESULT_NOTIFICATION_ID,
-            title = title,
-            text = tail.ifBlank { scriptName }
+            title = if (success) "运行完成" else "运行失败",
+            text = resultText(scriptName, success)
         )
     }
+
+    fun resultText(scriptName: String, success: Boolean): String =
+        "$scriptName · ${if (success) "运行完成" else "运行失败"}"
 
     fun notifySkipped(context: Context, scriptName: String, reason: String) {
         notify(
@@ -73,6 +71,8 @@ object RunNotifications {
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setLocalOnly(true)
             .build()
         manager.notify(id, notification)
     }

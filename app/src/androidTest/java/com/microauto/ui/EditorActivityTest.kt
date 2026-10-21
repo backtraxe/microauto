@@ -1,7 +1,9 @@
 package com.microauto.ui
 
+import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.closeSoftKeyboard
@@ -10,6 +12,7 @@ import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.replaceText
+import androidx.test.espresso.assertion.ViewAssertions.doesNotExist
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
@@ -18,10 +21,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.material.appbar.MaterialToolbar
 import com.microauto.R
 import com.microauto.TestData
+import com.microauto.accessibility.AccessibilityUtils
 import com.microauto.script.ScriptRepository
+import org.hamcrest.Matchers.not
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,6 +61,42 @@ class EditorActivityTest {
             onView(withId(R.id.btnSchedule)).perform(click())
             onView(withId(R.id.scheduleTime)).check(matches(isDisplayed()))
             closeSoftKeyboard()
+            pressBack()
+        }
+    }
+
+    @Test
+    fun runWithoutAccessibilityShowsExplanationDialog() {
+        Assume.assumeFalse(AccessibilityUtils.isEnabled(context))
+        launch().use {
+            onView(withId(R.id.btnRun)).perform(click())
+            onView(withText("需要开启无障碍服务")).check(matches(isDisplayed()))
+            onView(
+                withText(
+                    "MicroAuto 通过无障碍服务读取界面和执行点击。开启后返回即可运行当前脚本。"
+                )
+            ).check(matches(isDisplayed()))
+            onView(withText("去开启")).check(matches(isDisplayed()))
+            onView(withText("取消")).perform(click())
+            onView(withText("需要开启无障碍服务")).check(doesNotExist())
+            onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun scheduleSheetWarnsWhenExactAlarmMissing() {
+        Assume.assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+        val manager = context.getSystemService(AlarmManager::class.java)
+        Assume.assumeFalse(manager?.canScheduleExactAlarms() == true)
+        launch().use {
+            onView(withId(R.id.btnSchedule)).perform(click())
+            onView(withId(R.id.scheduleSwitch)).perform(click())
+            onView(withId(R.id.alarmWarningRow)).check(matches(isDisplayed()))
+            onView(withText("精确闹钟未授权，定时可能延迟")).check(matches(isDisplayed()))
+            onView(withText("去授权")).check(matches(isDisplayed()))
+
+            onView(withId(R.id.scheduleSwitch)).perform(click())
+            onView(withId(R.id.alarmWarningRow)).check(matches(not(isDisplayed())))
             pressBack()
         }
     }
