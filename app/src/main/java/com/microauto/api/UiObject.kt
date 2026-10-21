@@ -34,5 +34,9 @@ class UiObject internal constructor(
 
     fun bottom(): Int = actions.boundsOf(info)?.bottom ?: 0
 
+    fun centerX(): Int = actions.boundsOf(info)?.let { (it.left + it.right) / 2 } ?: 0
+
+    fun centerY(): Int = actions.boundsOf(info)?.let { (it.top + it.bottom) / 2 } ?: 0
+
     fun clickable(): Boolean = info.isClickable
 }

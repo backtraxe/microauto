@@ -28,6 +28,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
@@ -35,6 +36,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.tabs.TabLayout
@@ -63,7 +65,10 @@ class EditorActivity : AppCompatActivity() {
 
         private const val TAB_CODE = 0
         private const val TAB_LOG = 1
+        private const val TAB_API = 2
         private const val STATE_TAB = "editor_tab"
+        private const val PREFS_EDITOR = "editor_prefs"
+        private const val KEY_SYMBOL_BAR = "symbol_bar"
 
         private val CLOSING = mapOf(
             "{" to "}",
@@ -73,6 +78,10 @@ class EditorActivity : AppCompatActivity() {
             "'" to "'",
             "`" to "`"
         )
+    }
+
+    private val editorPrefs by lazy {
+        getSharedPreferences(PREFS_EDITOR, MODE_PRIVATE)
     }
 
     private lateinit var binding: ActivityEditorBinding
@@ -122,10 +131,12 @@ class EditorActivity : AppCompatActivity() {
         EdgeToEdge.apply(this, binding.root)
         binding.logScroll.clipToOutline = true
         setupTabs(savedInstanceState)
+        renderApiDocs()
 
         binding.toolbar.title = meta.name
         binding.toolbar.setNavigationOnClickListener { requestFinish() }
         binding.toolbar.inflateMenu(R.menu.menu_editor)
+        applySymbolBarVisibility(isSymbolBarEnabled())
         binding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_save -> {
@@ -146,6 +157,11 @@ class EditorActivity : AppCompatActivity() {
 
                 R.id.action_find_replace -> {
                     showFindReplace()
+                    true
+                }
+
+                R.id.action_symbol_bar -> {
+                    setSymbolBarVisible(!binding.symbolBarContainer.isVisible)
                     true
                 }
 
@@ -193,16 +209,34 @@ class EditorActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    private fun isSymbolBarEnabled(): Boolean =
+        editorPrefs.getBoolean(KEY_SYMBOL_BAR, true)
+
+    private fun applySymbolBarVisibility(visible: Boolean) {
+        binding.symbolBarContainer.isVisible = visible
+        binding.toolbar.menu.findItem(R.id.action_symbol_bar)?.isChecked = visible
+    }
+
+    private fun setSymbolBarVisible(visible: Boolean) {
+        editorPrefs.edit { putBoolean(KEY_SYMBOL_BAR, visible) }
+        applySymbolBarVisibility(visible)
+        binding.editorPage.post { expandEditorToFillPage() }
+    }
+
     private fun setupTabs(savedInstanceState: Bundle?) {
         binding.editorTabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 val showLog = tab.position == TAB_LOG
-                showPage(binding.editorPage, !showLog)
+                val showApi = tab.position == TAB_API
+                showPage(binding.editorPage, !showLog && !showApi)
                 showPage(binding.logPage, showLog)
-                if (showLog) {
+                showPage(binding.apiPage, showApi)
+                if (showLog || showApi) {
                     currentFocus?.clearFocus()
                     getSystemService(InputMethodManager::class.java)
                         ?.hideSoftInputFromWindow(binding.root.windowToken, 0)
+                }
+                if (showLog) {
                     binding.logScroll.post {
                         binding.logScroll.fullScroll(View.FOCUS_DOWN)
                     }
@@ -257,6 +291,106 @@ class EditorActivity : AppCompatActivity() {
         binding.editorTabs.getTabAt(TAB_LOG)?.select()
     }
 
+    private fun renderApiDocs() {
+        binding.apiList.removeAllViews()
+        ApiDocs.sections.forEachIndexed { index, section ->
+            binding.apiList.addView(
+                TextView(this).apply {
+                    text = section.title
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(
+                        MaterialColors.getColor(
+                            binding.root,
+                            com.google.android.material.R.attr.colorOnSurface
+                        )
+                    )
+                    setPadding(dp(4), if (index == 0) dp(8) else dp(24), dp(4), dp(8))
+                }
+            )
+            section.entries.forEach { entry ->
+                binding.apiList.addView(createApiEntryView(entry))
+            }
+        }
+    }
+
+    private fun createApiEntryView(entry: ApiEntry): View {
+        val card = MaterialCardView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+            radius = dp(12).toFloat()
+            cardElevation = 0f
+            strokeWidth = 0
+            setCardBackgroundColor(
+                MaterialColors.getColor(
+                    binding.root,
+                    com.google.android.material.R.attr.colorSurfaceContainer
+                )
+            )
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+        }
+        content.addView(
+            TextView(this).apply {
+                text = entry.signature
+                typeface = Typeface.MONOSPACE
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setTextColor(
+                    MaterialColors.getColor(
+                        binding.root,
+                        com.google.android.material.R.attr.colorOnSurface
+                    )
+                )
+                setTextIsSelectable(true)
+            }
+        )
+        content.addView(
+            TextView(this).apply {
+                text = entry.description
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                setTextColor(
+                    MaterialColors.getColor(
+                        binding.root,
+                        com.google.android.material.R.attr.colorOnSurfaceVariant
+                    )
+                )
+                setLineSpacing(dp(4).toFloat(), 1f)
+                setPadding(0, dp(6), 0, 0)
+            }
+        )
+        entry.example?.let { example ->
+            content.addView(
+                TextView(this).apply {
+                    text = example
+                    typeface = Typeface.MONOSPACE
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    setTextColor(
+                        MaterialColors.getColor(
+                            binding.root,
+                            com.google.android.material.R.attr.colorOnSurface
+                        )
+                    )
+                    setTextIsSelectable(true)
+                    background = ContextCompat.getDrawable(this@EditorActivity, R.drawable.bg_log)
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = dp(8) }
+                }
+            )
+        }
+        card.addView(content)
+        return card
+    }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN &&
             (event.isCtrlPressed || event.isMetaPressed)
@@ -308,6 +442,17 @@ class EditorActivity : AppCompatActivity() {
         updateLineNumbers()
         binding.scriptEditor.post { updateLineNumbers() }
         setupSymbolBar()
+        binding.editorPage.post { expandEditorToFillPage() }
+    }
+
+    private fun expandEditorToFillPage() {
+        val lineHeight = binding.scriptEditor.lineHeight
+        if (lineHeight <= 0) return
+        val chrome = dp(32 + 24 + 8)
+        val lines = ((binding.editorScroll.height - chrome) / lineHeight)
+            .coerceIn(20, 32)
+        binding.scriptEditor.minLines = lines
+        binding.lineNumbers.minLines = lines
     }
 
     private fun updateLineNumbers() {
@@ -729,10 +874,12 @@ class EditorActivity : AppCompatActivity() {
 
     private fun updateScheduleSummary() {
         val schedule = SchedulePrefs.scheduleFor(this, scriptId)
-        binding.scheduleSummary.text = if (schedule?.enabled == true) {
-            "每天 ${timeText(schedule.hour, schedule.minute)}"
+        val enabled = schedule?.enabled == true
+        binding.scheduleDot.isVisible = enabled
+        binding.btnSchedule.contentDescription = if (enabled && schedule != null) {
+            "定时设置，已启用，每天 ${timeText(schedule.hour, schedule.minute)}"
         } else {
-            "未启用"
+            "定时设置，未启用"
         }
     }
 

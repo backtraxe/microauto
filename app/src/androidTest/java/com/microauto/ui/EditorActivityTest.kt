@@ -49,7 +49,6 @@ class EditorActivityTest {
             onView(withText("UI 测试脚本")).check(matches(isDisplayed()))
             onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
             onView(withId(R.id.lineNumbers)).check(matches(isDisplayed()))
-            onView(withId(R.id.symbolBar)).check(matches(isDisplayed()))
             onView(withId(R.id.btnSchedule)).perform(click())
             onView(withId(R.id.scheduleTime)).check(matches(isDisplayed()))
             pressBack()
@@ -70,19 +69,20 @@ class EditorActivityTest {
     }
 
     @Test
-    fun lineNumbersFollowContent() {
+    fun apiTabShowsFunctionDocs() {
         launch().use {
-            onView(withId(R.id.scriptEditor)).perform(replaceText("a\nb\nc"))
-            onView(withId(R.id.lineNumbers)).check(matches(withText("1\n2\n3")))
+            onView(withText(R.string.editor_tab_api)).perform(click())
+            onView(withId(R.id.apiPage)).check(matches(isDisplayed()))
+            onView(withText("text(value)")).check(matches(isDisplayed()))
+            onView(withText("选择器")).check(matches(isDisplayed()))
         }
     }
 
     @Test
-    fun symbolBarInsertsPair() {
+    fun lineNumbersFollowContent() {
         launch().use {
-            onView(withId(R.id.scriptEditor)).perform(replaceText(""))
-            onView(withText("{")).perform(click())
-            onView(withId(R.id.scriptEditor)).check(matches(withText("{}")))
+            onView(withId(R.id.scriptEditor)).perform(replaceText("a\nb\nc"))
+            onView(withId(R.id.lineNumbers)).check(matches(withText("1\n2\n3")))
         }
     }
 

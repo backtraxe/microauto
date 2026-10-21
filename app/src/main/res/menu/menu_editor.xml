@@ -30,6 +30,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_symbol_bar"
+        android:checkable="true"
+        android:title="@string/action_symbol_bar"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_publish"
         android:title="@string/action_publish"
         app:showAsAction="never" />
