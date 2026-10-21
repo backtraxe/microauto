@@ -28,7 +28,9 @@ object ApiDocs {
                 ),
                 ApiEntry(
                     "textMatches(re)",
-                    "用正则匹配文本，re 为 JavaScript RegExp。",
+                    "用正则匹配文本，re 为 JavaScript RegExp。正则最长 1024 字符，" +
+                        "单个节点最多匹配 4096 字符；嵌套量词（如 (a+)+、(a?)+）、" +
+                        "变长有界量词（如 (a{1,2})+）和重复的交替分支（如 (a|aa)+、(ab|cd)+）会被保守拒绝。",
                     "textMatches(/登录|登陆/).findOne();"
                 ),
                 ApiEntry(

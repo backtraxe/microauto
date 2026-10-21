@@ -11,6 +11,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.microauto.core.ScriptLimits
 import com.microauto.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,7 @@ class ScriptService : Service() {
         private const val NOTIFICATION_ID = 1001
 
         fun start(context: Context, scriptId: String?, scriptName: String, script: String) {
+            ScriptLimits.scriptError(script)?.let { throw IllegalArgumentException(it) }
             val intent = Intent(context, ScriptService::class.java).apply {
                 action = ACTION_RUN
                 putExtra(EXTRA_SCRIPT, script)

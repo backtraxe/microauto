@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.Editable
+import android.text.InputFilter
 import android.text.Spanned
 import android.text.TextWatcher
 import android.text.style.BackgroundColorSpan
@@ -50,6 +51,8 @@ import com.microauto.core.DateFormats
 import com.microauto.core.FindMatch
 import com.microauto.core.FindReplaceEngine
 import com.microauto.core.ScheduleTime
+import com.microauto.core.ScriptLimits
+import com.microauto.core.ScriptInputGuard
 import com.microauto.databinding.ActivityEditorBinding
 import com.microauto.databinding.DialogRenameBinding
 import com.microauto.databinding.DialogVersionNoteBinding
@@ -75,6 +78,8 @@ class EditorActivity : AppCompatActivity() {
         private const val STATE_TAB = "editor_tab"
         private const val PREFS_EDITOR = "editor_prefs"
         private const val KEY_SYMBOL_BAR = "symbol_bar"
+        private const val STATE_TEXT_OMITTED = "editor_text_omitted"
+        private const val VIEW_STATE_SAFE_CHARS = 64_000
 
         private val CLOSING = mapOf(
             "{" to "}",
@@ -97,6 +102,8 @@ class EditorActivity : AppCompatActivity() {
     private var lastSavedContent = ""
     private var lastSavedAt = 0L
     private var awaitingAccessibilityRun = false
+    private var lastInputLimitNoticeAt = 0L
+    private var scriptInputFilter: InputFilter? = null
     private var highlighter: JsSyntaxHighlighter? = null
     private var lastLineCount = 0
     private var undoManager: EditorUndoManager? = null
@@ -104,6 +111,7 @@ class EditorActivity : AppCompatActivity() {
     private var findDialog: BottomSheetDialog? = null
     private var renameDialog: AlertDialog? = null
     private var accessibilityDialog: AlertDialog? = null
+    private var openErrorDialog: AlertDialog? = null
     private var findSheet: SheetFindReplaceBinding? = null
     private var findMatches: List<FindMatch> = emptyList()
     private var findIndex = -1
@@ -137,9 +145,19 @@ class EditorActivity : AppCompatActivity() {
         }
         scriptName = meta.name
         lastSavedAt = meta.updatedAt.takeIf { it > 0 } ?: System.currentTimeMillis()
+        val content = repository.read(scriptId).orEmpty()
+        val openError = ScriptLimits.scriptError(content)
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
         EdgeToEdge.apply(this, binding.root)
+        binding.lineNumbers.freezesText = false
+        binding.logText.freezesText = false
+        if (openError != null) {
+            binding.root.post {
+                if (!isFinishing && !isDestroyed) showOpenError(openError)
+            }
+            return
+        }
         binding.logScroll.clipToOutline = true
         setupTabs(savedInstanceState)
         renderApiDocs()
@@ -194,8 +212,8 @@ class EditorActivity : AppCompatActivity() {
             }
         }
 
-        lastSavedContent = repository.read(scriptId).orEmpty()
-        binding.scriptEditor.setText(lastSavedContent)
+        lastSavedContent = content
+        binding.scriptEditor.setText(content)
         setupEditor()
         updateSaveState()
         undoManager = EditorUndoManager(binding.scriptEditor) { updateUndoRedo() }
@@ -222,10 +240,49 @@ class EditorActivity : AppCompatActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        if (::binding.isInitialized) {
-            outState.putInt(STATE_TAB, binding.editorTabs.selectedTabPosition)
+        if (!::binding.isInitialized) {
+            super.onSaveInstanceState(outState)
+            return
         }
+        val editor = binding.scriptEditor
+        val text = editor.text?.toString().orEmpty()
+        val selectionStart = editor.selectionStart
+        val selectionEnd = editor.selectionEnd
+        val omitText = text.length > VIEW_STATE_SAFE_CHARS
+        if (omitText) {
+            undoManager?.pause()
+            editor.setText("")
+        }
+        try {
+            super.onSaveInstanceState(outState)
+        } finally {
+            if (omitText) {
+                setEditorTextIgnoringLimit(text)
+                editor.setSelection(
+                    selectionStart.coerceIn(0, text.length),
+                    selectionEnd.coerceIn(0, text.length)
+                )
+                undoManager?.resume()
+            }
+        }
+        if (omitText) outState.putBoolean(STATE_TEXT_OMITTED, true)
+        outState.putInt(STATE_TAB, binding.editorTabs.selectedTabPosition)
+    }
+
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+        if (!::binding.isInitialized || !savedInstanceState.getBoolean(STATE_TEXT_OMITTED)) {
+            return
+        }
+        val content = repository.read(scriptId).orEmpty()
+        lastSavedContent = content
+        lastSavedAt = repository.find(scriptId)?.updatedAt ?: System.currentTimeMillis()
+        setEditorTextIgnoringLimit(content)
+        binding.scriptEditor.setSelection(content.length)
+        updateLineNumbers()
+        binding.scriptEditor.post { updateLineNumbers() }
+        updateSaveState()
+        undoManager?.reset()
     }
 
     override fun onDestroy() {
@@ -234,6 +291,8 @@ class EditorActivity : AppCompatActivity() {
         renameDialog?.dismiss()
         accessibilityDialog?.dismiss()
         accessibilityDialog = null
+        openErrorDialog?.dismiss()
+        openErrorDialog = null
         undoManager?.stop()
         highlighter?.release()
         super.onDestroy()
@@ -452,6 +511,30 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun setupEditor() {
+        val filter = InputFilter {
+                source: CharSequence,
+                start: Int,
+                end: Int,
+                dest: Spanned,
+                dstart: Int,
+                dend: Int ->
+            val error = ScriptInputGuard.replacementError(
+                dest,
+                dstart,
+                dend,
+                source,
+                start,
+                end
+            )
+            if (error == null) {
+                null
+            } else {
+                notifyInputRejected(error)
+                if (dstart != dend) dest.subSequence(dstart, dend) else ""
+            }
+        }
+        scriptInputFilter = filter
+        binding.scriptEditor.filters = binding.scriptEditor.filters + filter
         highlighter = JsSyntaxHighlighter(binding.scriptEditor, this).also { it.install() }
         binding.scriptEditor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(
@@ -482,6 +565,28 @@ class EditorActivity : AppCompatActivity() {
         binding.editorPage.post { expandEditorToFillPage() }
     }
 
+    private fun notifyInputRejected(message: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastInputLimitNoticeAt < 2_000) return
+        lastInputLimitNoticeAt = now
+        binding.scriptEditor.post {
+            if (!isFinishing && !isDestroyed) {
+                Snackbar.make(binding.root, "无法输入：$message", Snackbar.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun setEditorTextIgnoringLimit(text: String) {
+        val editor = binding.scriptEditor
+        val filters = editor.filters
+        val filter = scriptInputFilter
+        if (filter != null) {
+            editor.filters = filters.filter { it !== filter }.toTypedArray()
+        }
+        editor.setText(text)
+        if (filter != null) editor.filters = filters
+    }
+
     private fun expandEditorToFillPage() {
         val lineHeight = binding.scriptEditor.lineHeight
         if (lineHeight <= 0) return
@@ -496,7 +601,11 @@ class EditorActivity : AppCompatActivity() {
         val count = binding.scriptEditor.lineCount.coerceAtLeast(1)
         if (count == lastLineCount) return
         lastLineCount = count
-        binding.lineNumbers.text = (1..count).joinToString("\n")
+        val shown = count.coerceAtMost(ScriptLimits.MAX_SCRIPT_LINES)
+        binding.lineNumbers.text = buildString {
+            append((1..shown).joinToString("\n"))
+            if (count > shown) append("\n…")
+        }
     }
 
     private fun setupSymbolBar() {
@@ -624,12 +733,16 @@ class EditorActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             ensureNotificationPermission()
-            ScriptService.start(
-                this,
-                null,
-                "看界面",
-                "toast(\"5 秒内切到目标界面\"); sleep(5000); dump();"
-            )
+            runCatching {
+                ScriptService.start(
+                    this,
+                    null,
+                    "看界面",
+                    "toast(\"5 秒内切到目标界面\"); sleep(5000); dump();"
+                )
+            }.onFailure {
+                Snackbar.make(binding.root, "启动失败：${it.message}", Snackbar.LENGTH_LONG).show()
+            }
             showLogTab()
         }
         binding.btnSchedule.setOnClickListener {
@@ -638,13 +751,17 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun runCurrentScript() {
+        val content = binding.scriptEditor.text.toString()
+        ScriptLimits.scriptError(content)?.let { message ->
+            Snackbar.make(binding.root, "无法运行：$message", Snackbar.LENGTH_LONG).show()
+            return
+        }
         ensureNotificationPermission()
-        ScriptService.start(
-            this,
-            scriptId,
-            scriptName,
-            binding.scriptEditor.text.toString()
-        )
+        runCatching {
+            ScriptService.start(this, scriptId, scriptName, content)
+        }.onFailure {
+            Snackbar.make(binding.root, "启动失败：${it.message}", Snackbar.LENGTH_LONG).show()
+        }
         showLogTab()
     }
 
@@ -662,6 +779,21 @@ class EditorActivity : AppCompatActivity() {
         accessibilityDialog = dialog
         dialog.setOnDismissListener {
             if (accessibilityDialog === dialog) accessibilityDialog = null
+        }
+        dialog.show()
+    }
+
+    private fun showOpenError(message: String) {
+        openErrorDialog?.dismiss()
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("无法打开脚本")
+            .setMessage(message)
+            .setPositiveButton("知道了") { _, _ -> finish() }
+            .setCancelable(false)
+            .create()
+        openErrorDialog = dialog
+        dialog.setOnDismissListener {
+            if (openErrorDialog === dialog) openErrorDialog = null
         }
         dialog.show()
     }
@@ -692,6 +824,15 @@ class EditorActivity : AppCompatActivity() {
 
     private fun saveScript(): Boolean {
         val content = binding.scriptEditor.text.toString()
+        ScriptLimits.scriptError(content)?.let { message ->
+            Snackbar.make(
+                binding.root,
+                "保存失败：$message",
+                Snackbar.LENGTH_LONG
+            ).show()
+            updateSaveState()
+            return false
+        }
         if (content == lastSavedContent) {
             updateSaveState()
             return true
@@ -804,7 +945,7 @@ class EditorActivity : AppCompatActivity() {
         val content = repository.read(scriptId).orEmpty()
         lastSavedContent = content
         lastSavedAt = repository.find(scriptId)?.updatedAt ?: System.currentTimeMillis()
-        binding.scriptEditor.setText(content)
+        setEditorTextIgnoringLimit(content)
         binding.scriptEditor.setSelection(content.length)
         updateLineNumbers()
         binding.scriptEditor.post { updateLineNumbers() }

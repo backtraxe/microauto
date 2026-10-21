@@ -58,10 +58,12 @@ app/src/androidTest/            仪器化测试
 - 单脚本串行：`ScriptService` 与 `ScriptRunner` 都有运行中检查，同一时刻只允许一个脚本；`RunState`/`RunLog` 用 `StateFlow` 供 UI 订阅，`RunState.activeScriptId` 标记当前脚本供首页行内运行状态使用。运行通知（含结果通知和前台服务常驻通知）只带脚本名和通用状态，并设置 `VISIBILITY_SECRET`，不读取日志正文。
 - 超时：脚本总时限 10 分钟，由指令观察器和 `AutomationBridge` 的桥接调用检查共同保证；`sleep` 会截断到剩余时间。页面必须亮屏且已解锁，否则 `ScriptRunner` 直接拒绝执行。
 - 无障碍：`AutomationService.instance` 持有 `rootInActiveWindow`；选择器 BFS 遍历，最多 2000 个节点、返回 100 个结果，轮询间隔 100ms。点击策略为 `ACTION_CLICK` → 最多 5 层可点击祖先 → 坐标手势。`NodeDump` 生成节点树，`isPassword` 节点的文本和描述都输出为 `<hidden>`。
+- 输入上限：导入、编辑和运行统一使用 `ScriptLimits`：脚本不超过 128 KB（UTF-8）且不超过 20,000 行；导入由 `BoundedTextReader` 流式限长，编辑器输入/粘贴由 `InputFilter` 限长，保存/运行前再次校验，超过时提示并拒绝。巨大文本不会写入 view state（超过 64,000 字符时在 `onSaveInstanceState` 中临时清空），因此这类内容不随旋转保留，旋转后回到最近保存的版本。
+- 正则防护：`RegexGuard` 限制 `textMatches` 正则最多 1024 字符、节点文本最多 4096 字符，并静态拒绝“外层无界量词 + 内层无界/可空/变长有界量词”以及无界重复的交替分支；交替分支规则是保守策略（`(ab|cd)+` 也会拒绝），不是完整线性正则引擎。
 - 手势：`GestureController` 把 `dispatchGesture` post 到主线程，并用 `CountDownLatch` 等待回调；脚本线程不可阻塞主线程。
 - 存储：`filesDir/scripts/` 下 `index.json`（脚本元数据）、`folders.json`、`versions.json`、`<uuid>.js`、`versions/<scriptId>/<versionId>.js`。索引和脚本文件通过 `.tmp` + rename 原子写入；`ScriptRepository` 用进程级内存缓存减少磁盘读取，写操作后更新缓存，`clearCache()` 用于测试/恢复。运行日志在 `filesDir/latest.log`（内存最多 20k 字符）。
 - 备份：`ScriptBackup` 将整个 `scripts/` 打包为 zip（`ScriptBackupCodec` 负责纯文件编解码、条目白名单、zip-slip 校验、ID/清单完整性校验和 50 MB 上限）；恢复分两阶段：先校验临时目录，再替换；旧目录保留到新仓库加载成功，失败会回滚，成功后取消所有定时。`ScriptPaths` 负责 ID 格式与 canonical path 包含校验。`MicroAutoApp` 启动时先调用 `ScriptBackup.recoverInterruptedRestore`，处理恢复过程中被强杀留下的 `scripts-before-restore`。
-- 定时：每个脚本可单独定时，配置以 JSON 存在 `SharedPreferences` 名 `schedule`（旧版单条配置会自动迁移）。`ScriptScheduler` 为每条定时分配 `alarmId`，daily requestCode 为 `10000 + alarmId`，retry 为 `1000000 + alarmId`；无精确闹钟权限时降级为非精确闹钟。`BootReceiver` 在开机、改时间、改时区后重注册；息屏/锁屏时 `ScheduleTriggerPolicy` 会在 1 小时内每 2 分钟重试，超窗后通知跳过。
+- 定时：每个脚本可单独定时，配置以 JSON 存在 `SharedPreferences` 名 `schedule`（旧版单条配置会自动迁移）。`ScriptScheduler` 为每条定时分配 `alarmId`，daily requestCode 为 `10000 + alarmId`，retry 为 `1000000 + alarmId`；无精确闹钟权限时降级为非精确闹钟。`BootReceiver` 在开机、改时间、改时区后重注册（`exported="false"`，系统 protected broadcast 仍可送达）；息屏/锁屏时 `ScheduleTriggerPolicy` 会在 1 小时内每 2 分钟重试，超窗后通知跳过。
 
 ## 修改脚本 API 的固定流程
 
@@ -105,7 +107,7 @@ app/src/androidTest/            仪器化测试
 ## 签名与发布
 
 - debug 使用仓库内固定 `signing/debug.keystore`（alias `androiddebugkey`，密码 `android`）。**不要替换或删除**，本地与 CI 的 debug 签名需要一致才能覆盖安装。
-- release 从根目录 `keystore.properties` 或环境变量 `RELEASE_KEYSTORE_PATH` / `RELEASE_KEYSTORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD` 读取签名信息；找不到 release keystore 时回退到 debug 签名。
+- release 从根目录 `keystore.properties` 或环境变量 `RELEASE_KEYSTORE_PATH` / `RELEASE_KEYSTORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD` 读取签名信息；缺少 release keystore 时，请求 release 任务的构建会直接失败，**不再回退 debug 签名**。debug/测试/Lint 不受影响。
 - `keystore.properties`、`*.jks`、`*.keystore` 已 gitignore（debug keystore 除外）。不要读取、打印或提交这些密钥文件。
 - 发版：直接打 `v*` tag 推送，由 CI 构建并创建 Release；`versionCode`/`versionName` 自动生成，无需手改。
 - `app/proguard-rules.pro` 保留 Rhino 反射所需类，不要删除。

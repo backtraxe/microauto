@@ -69,7 +69,6 @@ android {
         release {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
-                ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -96,6 +95,27 @@ android {
             (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName =
                 "MicroAuto-$variantVersionName.apk"
         }
+    }
+}
+
+val releaseSigningConfig = android.signingConfigs.getByName("release")
+
+gradle.taskGraph.whenReady {
+    val releaseArtifactTasks = setOf(
+        "assembleRelease",
+        "bundleRelease",
+        "packageRelease",
+        "installRelease"
+    )
+    val requestsRelease = allTasks.any { task ->
+        task.project == project && task.name in releaseArtifactTasks
+    }
+    if (requestsRelease && releaseSigningConfig.storeFile == null) {
+        throw org.gradle.api.GradleException(
+            "release keystore 未配置：请设置 RELEASE_KEYSTORE_PATH、" +
+                "RELEASE_KEYSTORE_PASSWORD、RELEASE_KEY_ALIAS、RELEASE_KEY_PASSWORD，" +
+                "或在 keystore.properties 中配置签名信息。release 构建不再回退 debug 签名。"
+        )
     }
 }
 

@@ -39,7 +39,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.microauto.R
 import com.microauto.accessibility.AccessibilityUtils
+import com.microauto.core.BoundedTextReader
 import com.microauto.core.DateFormats
+import com.microauto.core.ScriptLimits
 import com.microauto.core.ScriptNaming
 import com.microauto.databinding.ActivityMainBinding
 import com.microauto.databinding.DialogRenameBinding
@@ -774,6 +776,10 @@ class MainActivity : AppCompatActivity() {
             refresh()
             return
         }
+        ScriptLimits.scriptError(content)?.let { message ->
+            Snackbar.make(binding.root, "无法运行：$message", Snackbar.LENGTH_LONG).show()
+            return
+        }
         ensureNotificationPermission()
         runCatching {
             ScriptService.start(this, meta.id, meta.name, content)
@@ -959,11 +965,9 @@ class MainActivity : AppCompatActivity() {
             if (cursor.moveToFirst()) cursor.getString(0) else null
         }
         val content = contentResolver.openInputStream(uri)
-            ?.bufferedReader()
-            ?.use { it.readText() }
+            ?.use { BoundedTextReader.read(it) }
             ?: error("无法读取文件")
-        if (content.length > MAX_IMPORT_CHARS) error("文件超过 1 MB")
-        if (content.contains('\u0000')) error("不是文本文件")
+        ScriptLimits.scriptError(content)?.let { error(it) }
         val name = ScriptNaming.fromFileName(displayName ?: "导入脚本")
         repository.create(name, content, folderId)
     }
@@ -1056,7 +1060,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private companion object {
-        const val MAX_IMPORT_CHARS = 1_000_000
         const val SEARCH_DEBOUNCE_MS = 250L
         const val BACKUP_FILE_NAME = "MicroAuto-backup.zip"
         const val KEY_PENDING_EXPORT = "pending_export_id"

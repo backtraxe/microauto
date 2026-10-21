@@ -413,3 +413,349 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 - 9.5.3（低，前台通知）已修复：`ScriptService` 常驻通知增加 `VISIBILITY_SECRET` + `localOnly`。
 - 复核结果：JVM 单元测试 **137/137**，仪器化 **69/69**，Lint 0 error（1 既有警告），`assembleDebug` 通过。
 - 仍未覆盖：关闭日志设置、系统设置往返、TalkBack/大字号、SEC-008 生命周期竞态（均按约定留待后续）。
+
+---
+
+## 10. 第三批验收（SEC-006 / SEC-009 / SEC-010 / SEC-011）
+
+- 测试日期：2026-10-21
+- 代码基线：v0.9.0 + 工作区未提交改动
+- 范围：SEC-009（BootReceiver 导出收紧）、SEC-010（release 签名 fail-fast）、SEC-011（正则防护）、SEC-006（有界导入 / 编辑器 / 运行大小限制，部分）
+- 测试角色：独立 QA；只读审查生产代码，仅新增/加强测试；未修改生产代码，未 commit / tag / push
+
+### 10.1 环境与命令
+
+环境同前：macOS（Apple Silicon）、JDK 17、Gradle 8.11.1 / AGP 8.10.1 / Kotlin 2.1.20、Android SDK platform 36 / build-tools 36.0.0、AVD `microauto_api35`（API 35，arm64-v8a）。
+
+```bash
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+./scripts/run-emulator-tests.sh   # 完整跑两轮
+
+# SEC-010
+RELEASE_KEYSTORE_PATH=/tmp/nonexistent ./gradlew :app:assembleRelease --dry-run
+RELEASE_KEYSTORE_PATH="$PWD/signing/debug.keystore" \
+  RELEASE_KEYSTORE_PASSWORD=android RELEASE_KEY_ALIAS=androiddebugkey \
+  RELEASE_KEY_PASSWORD=android ./gradlew :app:assembleRelease --dry-run
+RELEASE_KEYSTORE_PATH=/tmp/nonexistent ./gradlew :app:assembleDebug --dry-run
+```
+
+### 10.2 结果汇总
+
+| 套件 | 数量 | 失败 | 错误 | 跳过 | 结论 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| JVM 单元测试（类数随新增测试增加） | 165 | 0 | 0 | 0 | 通过 |
+| 仪器化测试（API 35） | 74 | 0 | 0 | 0 | 最终连续两轮 74/74 通过 |
+| Android Lint | — | — | — | — | 0 errors，1 warning（既有 `core-ktx` 版本提示） |
+| Debug 构建 | — | — | — | — | 成功，`app/build/outputs/apk/debug/MicroAuto-0.9.0.apk` |
+
+- JVM：开发者自测 `154`，本轮新增 `11` 项（正则/边界/流式/JS 捕获等）后 `165/165`；0 skipped。
+- 仪器化：开发者自测 `70`，本轮新增 `4` 项（`ManifestTest` 2、`ScriptServiceStartGuardTest` 1、Editor 1MB 用例 1）后 `74`；最终两轮 `74/74`，0 skipped。
+- 仪器化分布（最终轮）：`ManifestTest 2`、`SchedulePrefsTest 6`、`RunNotificationsInstrumentedTest 2`、`ScriptBackupRestoreTest 10`、`ScriptRepositoryPathTest 1`、`ScriptRepositoryTest 15`、`ScriptServiceStartGuardTest 1`、`DialogLifecycleTest 4`、`EditorActivityTest 18`、`MainActivityTest 14`、`VersionsActivityTest 1`。
+- **SEC-010 命令结果**：
+  - `RELEASE_KEYSTORE_PATH=/tmp/nonexistent ./gradlew :app:assembleRelease --dry-run` → **exit 1**，错误信息：`release keystore 未配置：请设置 RELEASE_KEYSTORE_PATH、RELEASE_KEYSTORE_PASSWORD、RELEASE_KEY_ALIAS、RELEASE_KEY_PASSWORD，或在 keystore.properties 中配置签名信息。release 构建不再回退 debug 签名。`
+  - `RELEASE_KEYSTORE_PATH=$PWD/signing/debug.keystore ... assembleRelease --dry-run` → **exit 0**，`packageRelease`/`assembleRelease` 均为 `SKIPPED`（仅 dry-run，未生成/发布使用 debug key 的 release 包）。
+  - `RELEASE_KEYSTORE_PATH=/tmp/nonexistent ./gradlew :app:assembleDebug --dry-run` → **exit 0**，debug 构建不受影响。
+  - 常规 `testDebugUnitTest + lintDebug + assembleDebug` → 成功。
+- **仪器化 flaky 说明**：加入新测试后的第二轮完整运行 74 项中 1 项失败（`characterOversizedScriptIsBlockedWithMessage` 抛 `RootViewWithoutFocusException`），根因是编辑器超限对话框在 `setContentView` 之前显示，Activity 基础窗口无焦点；测试侧用 `inRoot(isDialog())` 定向到对话框窗口后，连续 3 次定向复跑与最终两轮完整运行均通过（产品代码未改，问题见 10.5.2）。
+
+### 10.3 逐项验收
+
+#### SEC-009（P2）BootReceiver 导出收紧
+
+**结论：通过（静态 + manifest 断言），系统广播实际送达未设备验证。**
+
+- `AndroidManifest.xml` 中 `BootReceiver` 已改为 `android:exported="false"`，仍保留 `BOOT_COMPLETED` / `TIME_SET` / `TIMEZONE_CHANGED` 三个 filter；`AutomationService` 仍为 `exported="true"`（系统绑定所必需），`ScheduleReceiver`/`ScriptService` 保持 `exported=false`。
+- 新增 `ManifestTest`：
+  - `bootReceiverIsUnexportedAndKeepsSystemFilters`：`PackageManager.getReceiverInfo(...).exported == false`，并通过 `queryBroadcastReceivers` 对三个 action 解析到 `BootReceiver`（同包查询）；
+  - `automationServiceRemainsExportedForSystemBinding`：`AutomationService` 仍导出。
+- 静态结论：系统（system UID）仍可向非导出 receiver 投递 protected broadcast；第三方应用无法显式发送到该 receiver。实际重启/改时间/改时区后的重注册未在设备上验证（见 10.6）。
+
+#### SEC-010（P2）release 缺少 keystore 时 fail-fast
+
+**结论：通过。**
+
+- `app/build.gradle.kts` 移除 release → debug 的签名回退；`gradle.taskGraph.whenReady` 在任务图中出现 `assembleRelease`/`bundleRelease`/`packageRelease`/`installRelease` 且 `releaseSigningConfig.storeFile == null` 时抛 `GradleException`，错误信息明确列出环境变量与 `keystore.properties` 两种配置方式。
+- 签名配置只在 `RELEASE_KEYSTORE_PATH`（或 `keystore.properties.storeFile`）指向的**文件存在**时设置 `storeFile`；因此 `/tmp/nonexistent` 会触发 fail-fast，而不是拖到签名阶段。
+- 实测：无 release keystore 的 `assembleRelease --dry-run` exit 1（信息清晰）；用仓库 debug keystore 作为 `RELEASE_KEYSTORE_PATH` 的 dry-run exit 0；`assembleDebug` 在 `RELEASE_KEYSTORE_PATH=/tmp/nonexistent` 下仍成功。
+- CI：`.github/workflows/android.yml` 未改动；tag/workflow_dispatch 先执行 `Decode release keystore` 生成 `$RUNNER_TEMP/microauto-release.jks`，随后 `Test, lint and build` 步骤把同一路径注入 `RELEASE_KEYSTORE_PATH` 并仅在 tag 分支执行 `assembleRelease`，因此新 fail-fast 不会阻断 PR 的 debug 构建，tag 构建仍可用（静态审查；未实际跑 CI tag）。
+- **行为变化提示**：任何包含 release 产物的任务图（如 `./gradlew assemble` 或 `./gradlew build`）现在在缺少 release keystore 时都会失败，这是 fail-fast 的预期结果，但本地开发者需要知晓；`testDebugUnitTest`、`lintDebug`、`assembleDebug` 不受影响。
+
+#### SEC-011（P2）正则防护
+
+**结论：核心验收通过（1MB + `(a+)+$` 被快速拒绝，正常正则不受影响，异常可被脚本捕获），但静态规则是启发式，仍有误伤与漏判（见 10.5.1）。**
+
+- `RegexGuard`：`MAX_PATTERN_CHARS=1024`、`MAX_TEXT_CHARS=4096`；`validate()` 拒绝超长与“组内出现 `*`/`+` 且组后紧跟 `*`/`+`/`{`”的模式；`matches()` 先拒绝超长文本/不安全 pattern，再执行 `find()`（`app/src/main/java/com/microauto/core/RegexGuard.kt:10-68`）。
+- 接入：`UiSelector.textMatches()` 在 `Pattern.compile` 前 `RegexGuard.validate(source)`；`Selector.matches()` 用 `RegexGuard.matches(textPattern, nodeText)` 替代直接 `matcher.find()`（`UiSelector.kt:15-19`、`Selector.kt:22`）。
+- 测试证据：
+  - `RegexGuardTest.oneMegabyteTextWithNestedQuantifierReturnsImmediately`：1,000,000 字符 + `(a+)+$` 在 1 秒内返回 false（实际远低于 1 秒）。
+  - `textLongerThanLimitIsNotMatched`：4096 字符可匹配，4097 不匹配。
+  - `RegexGuardTest.acceptsGroupedAndAlternationPatterns` / `UiSelectorTest`：`a+b`、`(ab)+`、`(a|b)+`、`(?:ab)+`、`(a+)?`、`(abc){2}`、`\d{2,4}` 均被接受；1024 字符边界接受、1025 拒绝。
+  - `PreludeSmokeTest.rejectedRegexIsCatchableFromScript`：真实 Rhino 下 `try { textMatches(/(a+)+/) } catch (e)` 可捕获，日志包含“嵌套量词”，脚本不会因未捕获异常直接中断。
+  - `UiSelectorTest` 覆盖超长/嵌套拒绝；`ApiDocs`/教程已补充限制说明。
+- 限制说明：`(a|aa)+$`、`(a{2,})+`、`(a?)+` 通过静态检查；4096 字符文本下仍可能发生灾难性回溯（见 10.5.1）。`(a+){2}` 这类有界重复被误判为嵌套量词（误伤）。
+
+#### SEC-006（P2，部分）有界导入与编辑器/运行上限
+
+**结论：已实现的三项守卫均通过，无半成品文件；导入 >20,000 行的 UX 与编辑/保存阶段的限制仍不完整（见 10.5.3/10.5.4）。**
+
+- 导入：`MainActivity.importFromUri()` 在 IO 线程用 `BoundedTextReader.read()` 读取（8 KB 缓冲、上限 1,000,000 字节、NUL 拒绝），读取成功后才 `repository.create()`；失败由 `runCatching` 转成 `导入失败：...` Toast（`MainActivity.kt:957-973`）。没有“先建脚本再读文件”的半成品路径。
+  - `BoundedTextReaderTest.stopsReadingShortlyAfterByteLimit` 用无限流验证：抛错时实际读取 ≤ 上限 + 8 KB，未读完整个流；`acceptsExactlyByteLimit` 验证 1,000,000 字节边界；NUL 拒绝。
+- 编辑器：`EditorActivity.onCreate()` 在 inflate/setContentView 之前读取内容并调用 `ScriptLimits.editorError()`；超 1,000,000 字符或 20,000 行时显示“无法打开脚本”对话框并 `finish()`（`EditorActivity.kt:143-148,690-702`）。行号渲染也限制到 20,000 行（超出显示 `…`）。
+  - `EditorActivityTest.oversizedScriptIsBlockedWithMessage`（20,001 行）与 `characterOversizedScriptIsBlockedWithMessage`（1,000,001 字符）验证提示与关闭；正常脚本用例全部保持通过。
+- 运行：`ScriptService.start()` 统一调用 `ScriptLimits.runError()`，超过 512 KB（UTF-8 字节）抛 `IllegalArgumentException`（`ScriptService.kt:33-35`）。三条路径：首页 `runScript()` 预检 + `runCatching`、编辑页 `runCurrentScript()` 预检 + `runCatching`、`ScheduleReceiver` 的 `runCatching { ScriptService.start(...) }` 转失败通知。
+  - `ScriptLimitsTest` 覆盖 512 KB 精确边界、512 KB+1 ASCII、多字节 UTF-8 超限；`ScriptServiceStartGuardTest` 验证超限脚本在服务启动前被拒绝。
+
+### 10.4 新增 / 加强的测试
+
+| 文件 | 数量 | 内容 |
+| --- | ---: | --- |
+| `app/src/test/java/com/microauto/core/RegexGuardTest.kt` | +3 | 常见分组/交替模式不误伤、1024 边界、`Selector` 正常匹配 |
+| `app/src/test/java/com/microauto/core/BoundedTextReaderTest.kt` | +2 | 无限流在超限后停止读取、恰好 1,000,000 字节可读 |
+| `app/src/test/java/com/microauto/core/ScriptLimitsTest.kt` | +3 | 编辑器 1,000,000 字符边界、运行 512 KB 边界、多字节 UTF-8 超限 |
+| `app/src/test/java/com/microauto/api/UiSelectorTest.kt` | +2 | 分组/交替模式、1024 字符边界 |
+| `app/src/test/java/com/microauto/script/PreludeSmokeTest.kt` | +1 | 正则拒绝异常在真实 Rhino 脚本中可捕获并带中文提示 |
+| `app/src/androidTest/java/com/microauto/ui/EditorActivityTest.kt` | +1（并加强 2） | 1,000,001 字符脚本拒绝；超限对话框改用 `inRoot(isDialog())` 定向窗口，消除焦点 flake |
+| `app/src/androidTest/java/com/microauto/ManifestTest.kt` | 2（新增） | BootReceiver `exported=false` + 三个系统 action 仍可解析；AutomationService 仍导出 |
+| `app/src/androidTest/java/com/microauto/script/ScriptServiceStartGuardTest.kt` | 1（新增） | 超 512 KB 脚本在 `ScriptService.start` 之前被拒绝 |
+
+### 10.5 发现的问题
+
+#### 10.5.1（中）`RegexGuard` 静态规则不完整：漏判灾难性回溯，并误伤有界重复
+
+**探测结果（`isSafe`，临时 JVM 探针，已删除）：**
+
+```
+a+b          -> true      (ab)+        -> true
+(a|b)+       -> true      (?:ab)+      -> true
+(a+)?        -> true      \d{2,4}      -> true
+(abc){2}     -> true      (a+){2}      -> false
+(a{2,})+     -> true      (a?)+        -> true
+(a|aa)+      -> true
+```
+
+- **漏判（安全）**：`RegexGuard.hasNestedQuantifier()` 只跟踪组内的 `*`/`+`，不跟踪 `{m,n}` 和 `?`；`(a|aa)+$`、`(a{2,})+`、`(a?)+` 均通过。`RegexGuard.matches()` 允许最多 4096 字符节点，`(a|aa)+$` 对 4096 个 `a` + 结尾 `b` 仍可指数级回溯，恶意脚本可让运行线程长时间挂起，SEC-011 的“脚本可控正则不能 DoS”目标未完全达成。代码：`app/src/main/java/com/microauto/core/RegexGuard.kt:32-68`、`RegexGuard.kt:26-30`。
+- **误伤（兼容）**：`(a+){2}` 被判定为“嵌套量词”并抛 `IllegalArgumentException`，但这是有界重复、通常安全；`(a+){0,1}` 同理。使用这类正常模式的脚本会在 `textMatches()` 构造阶段直接失败。代码：`RegexGuard.kt:57`（`next == '{'` 一律拒绝）。
+- 说明：1MB + `(a+)+$` 的专门验收已通过，文档也明确“缓解，不是完整线性正则引擎”；但既然产品承诺“静态拒绝嵌套量词”，建议至少：
+  - 优先引入 RE2/J 或等价线性引擎；
+  - 或把 `{m,n}` 纳入解析并只在真正嵌套/无界时拒绝，减少 `(a+){2}` 误伤；
+  - 或把 `MAX_TEXT_CHARS` 降到更保守的值，并对 `(a|aa)+` 这类交替歧义做额外检测；
+  - 增加运行侧 watchdog/超时（当前 Java 正则不响应线程中断）。
+
+#### 10.5.2（中）编辑器超限错误对话框在 `setContentView` 之前显示，基础窗口无焦点
+
+- `EditorActivity.onCreate()` 在 inflate/setContentView 之前读取内容；超限时 `showOpenError(message); return`，此时 Activity 没有内容视图（`EditorActivity.kt:143-148`），`showOpenError()` 用 Activity context 直接 `AlertDialog.show()`（`EditorActivity.kt:690-702`）。
+- 全量仪器化第二轮复现：`characterOversizedScriptIsBlockedWithMessage` 抛 `RootViewWithoutFocusException`，等待 10 秒仍无窗口焦点；失败日志中的根为应用基础窗口 `has-window-focus=false`、`child-count=2`（空 DecorView），对话框窗口虽存在但 Espresso 默认选中了基础窗口。定向 3 次复跑 + 最终两轮完整运行在测试使用 `inRoot(isDialog())` 后通过。
+- 影响：真实设备上用户能看到对话框（对话框自身窗口有焦点），但 Activity 基础窗口始终无焦点/空白，存在时序性焦点问题，且会使 UI 测试不稳定；与前两轮“对话框焦点”问题同类。
+- 建议：先 `setContentView(binding.root)` 再显示错误对话框（或 `binding.root.post { showOpenError(...) }`），或在 `MainActivity` 打开编辑器前先做 `ScriptLimits.editorError` 检查；错误对话框继续在 `onDestroy` 中 dismiss（当前已跟踪）。
+
+#### 10.5.3（低）导入超过 20,000 行不会在导入阶段拒绝，只会在打开编辑器时提示
+
+- `MainActivity.importFromUri()` 只做 1 MB 字节/NUL 检查，随后 `repository.create()` 并用 `openEditor(meta.id)` 打开；`EditorActivity` 才用 `ScriptLimits.editorError()` 拒绝 >20,000 行并 `finish()`（`MainActivity.kt:957-973`、`EditorActivity.kt:143-148`）。
+- 结果：用户导入一个 1 MB 换行文件会“导入成功”，随即看到“无法打开脚本”，脚本仍留在列表中且无法编辑；虽不会 ANR（满足 SEC-006 的主要验收），但 UX 不佳。
+- 建议：导入前调用 `ScriptLimits.editorError(content)`，直接提示“脚本超过 20,000 行，未导入”；或在错误对话框中提供删除入口。
+
+#### 10.5.4（低）编辑器 1 MB/20k 限制只在“打开”时生效，编辑/保存可越过；1 MB 编辑与 512 KB 运行限制不一致
+
+- `EditorActivity.saveScript()` 未调用 `ScriptLimits.editorError()`（`EditorActivity.kt:729` 起）；用户可以在已打开的编辑器里粘贴 >1 MB 或 >20,000 行内容并保存，下次打开才被拒绝。
+- `ScriptLimits.MAX_EDITOR_CHARS=1,000,000` 而 `MAX_RUN_BYTES=512 KB`：512 KB–1 MB 的脚本可以保存/打开，但无法运行；用户只有在点运行时才看到“脚本过大”。这不是安全漏洞，但属于产品规则不一致。
+- 建议：保存前做同样的 editor 限制并给出明确提示，或在 UI/教程中明确“可编辑但不可运行”的区间；若希望统一，可把运行上限与编辑上限对齐（受 Binder 限制约束）。
+
+#### 10.5.5（提示）SEC-009 的系统广播实际送达未设备验证
+
+- `ManifestTest` 只验证 manifest `exported=false` 与同包查询可解析 filter；真正的 `BOOT_COMPLETED`/`TIME_SET`/`TIMEZONE_CHANGED` 由 system UID 投递到非导出 receiver 的链路需要重启/改时间/改时区实测。Android 文档与现有 manifest 结构支持该行为，但本轮未做设备级验证。
+
+#### 10.5.6（提示）SEC-010 的 CI tag 路径与 `assemble/build` 行为变化
+
+- CI tag 路径仅做静态审查（decode → `RELEASE_KEYSTORE_PATH` → `assembleRelease`），未实际跑 GitHub Actions；工作流未改动，PR 的 debug 构建不受影响。
+- 现在任何包含 release 产物的任务图（`assemble`、`build`）在缺少 release keystore 时都会 fail-fast；这是预期的安全收紧，但本地开发者需要改用 `assembleDebug` 或配置 release keystore。
+
+### 10.6 未覆盖 / 需人工验收的风险
+
+- **Regex 灾难性回溯**：未实际运行 `(a|aa)+$` 对 4096 字符（会长时间挂起）；仅通过静态分析/小规模矩阵确认规则漏判。若需要量化，应在隔离进程/超时保护下测试。
+- **SAF 导入 UI**：`BoundedTextReader` 的流式/超限由单元测试覆盖，但系统文件选择器、无限/阻塞流、导入失败 Toast 的端到端路径未在设备上验证。
+- **真实运行/定时链路**：512 KB 守卫由 `ScriptService.start` 单元/仪器化测试覆盖，但真实无障碍运行、定时触发大脚本的完整链路未跑（需要开启无障碍）。
+- **BootReceiver 运行时**：未重启设备或改系统时间/时区验证重注册；仅 manifest 静态断言。
+- **CI release**：未执行 tag 推送/真实 secrets 构建，未验证 `apksigner` 证书输出。
+- **编辑器大脚本**：1 MB/20k 限制在低内存设备上的主线程读取/对话框表现未压测；>4096 字符节点在 `textMatches` 下会静默不匹配（有意限制，需在文档中说明）。
+- **范围外**：SEC-007 主线程 IO、SEC-008 服务生命周期、SEC-004 日志开关等仍未验证。
+
+### 10.7 结论与上线建议
+
+- **SEC-009、SEC-010 通过**；SEC-006 的导入有界读取、编辑器 1 MB/20k 打开守卫、运行 512 KB 统一守卫均通过；SEC-011 的 1 MB + `(a+)+$` 验收、正常正则与脚本异常捕获均通过。
+- 主要遗留是 **RegexGuard 的启发式边界**（10.5.1）：静态规则漏判 `(a|aa)+` 等灾难性模式且误伤 `(a+){2}`；由于应用运行的是用户脚本，最坏影响是脚本自我 DoS/运行线程挂起，不构成新的权限逃逸。其次为 **编辑器超限对话框的焦点时序**（10.5.2），会让 UI 测试 flaky、真实设备上基础窗口无焦点。
+- **建议上线（附条件）**：
+  1. 在发布说明/教程中明确 RegexGuard 只是缓解，并限制 `textMatches` 的使用；下一个补丁优先引入 RE2/J 或更严格的解析/超时保护；
+  2. 修复编辑器超限对话框的显示顺序（先 `setContentView` 或 `post`），消除焦点 flake；
+  3. 视产品取舍在导入/保存阶段提前应用 20,000 行与 1 MB 限制；
+  4. 发布前补一次真实重启/改时间、SAF 导入和 CI tag 构建验证。
+
+### 10.8 修复复核（第四轮，2026-10-21）
+
+复核范围：RegexGuard 边界、编辑器超限对话框显示顺序、导入阶段 20,000 行拒绝、统一 512KB/20k 限制与保存检查。只修改测试代码；临时探针已删除；未 commit/tag/push。
+
+#### 10.8.1 结果汇总
+
+| 项 | 结果 |
+| --- | --- |
+| JVM 单元测试 | **165/165 通过**（0 失败/0 跳过） |
+| 仪器化测试（API 35） | **75/75 通过，连续两轮**（`run-emulator-tests.sh`） |
+| Lint | 0 errors，1 warning（既有 `core-ktx` 版本提示） |
+| assembleDebug | 成功，`MicroAuto-0.9.0.apk` |
+| 焦点/窗口日志（完整两轮） | `RootViewWithoutFocusException` **0**、`WindowLeaked` **0**、`TransactionTooLargeException` **0**（全量 logcat） |
+| 定向编辑器超限用例 | 打开超限对话框 2/2 通过；保存 dirty 用例在完整轮通过 |
+
+修复前的问题已按要求处理：`(a+){2}`、`(a{2})+`、`(a+)?` 放行；`(a?)+`、`(a{2,})+`、`(a{0,1})+`、`(a|aa)+` 拒绝；`a+b`、`(ab)+` 行为不变；1MB + `(a+)+$` 仍快速返回。编辑器错误对话框改为 `setContentView` 后 `post` 显示并由字段持有/`onDestroy` 释放；导入在 `repository.create` 前调用 `ScriptLimits.scriptError`；限制统一为 512 KB + 20,000 行，保存也检查。
+
+#### 10.8.2 RegexGuard 矩阵（`RegexGuard.isSafe`）
+
+| 模式 | 期望（本轮要求） | isSafe | 结论 |
+| --- | --- | --- | --- |
+| `(a+){2}` | 放行 | true | 通过 |
+| `(a{2})+` | 放行 | true | 通过 |
+| `(a+)?` | 放行 | true | 通过 |
+| `(a?)+` | 拒绝 | false | 通过 |
+| `(a{2,})+` | 拒绝 | false | 通过 |
+| `(a{0,1})+` | 拒绝 | false | 通过 |
+| `(a|aa)+` | 拒绝 | false | 通过 |
+| `a+b` | 放行 | true | 通过 |
+| `(ab)+` | 放行 | true | 通过 |
+
+补充矩阵（未在本轮要求内，用于评估残留风险）：
+
+| 模式 | isSafe | 说明 |
+| --- | --- | --- |
+| `(a|b)+` | false | 保守拒绝；`(a|b)+` 是常见安全模式，现被误伤（文档已说明任何无界重复的交替分支都拒绝） |
+| `(ab|cd)+` | false | 保守拒绝（文档已说明） |
+| `(a|b)` / `(a|b){2}` | true | 非无界重复/有界重复，放行 |
+| `(a|b){2,}` | false | 无界重复 + 交替，拒绝 |
+| `(?:ab)+` | true | 放行 |
+| `((a|b)c)+` | false | 嵌套交替传播到外层，保守拒绝 |
+| `(a+){2,}` | false | 无界外层重复，保守拒绝 |
+| `(a+){2,3}` | true | 有界重复，放行 |
+| `(a*)*` | false | 嵌套量词，拒绝 |
+| `(a{1,2})+` | **true** | **残留漏判**：变长有界重复嵌套在无界组内，仍可灾难性回溯 |
+| `(a{0,2})+` | **true** | 同上 |
+| `(a{2,3})+` | **true** | 同上 |
+| `(a{0,3})+` | **true** | 同上 |
+
+- 1MB + `(a+)+$`：`RegexGuardTest.oneMegabyteTextWithNestedQuantifierReturnsImmediately` 通过（断言 <1s，实际远低于 1s）。
+- **残留风险（中）**：`(a{1,2})+`、`(a{0,2})+` 等“变长有界重复 + 外层无界重复”不在 `hasRiskyRepetition()` 的判定内，4096 字符文本仍可能指数回溯；建议将 `{m,n}` 中 `m != n` 且 n>1 的情况也视为风险，或引入 RE2/J/超时保护。
+- **兼容性（低）**：`(a|b)+`、`(ab|cd)+`、`((a|b)c)+` 等安全模式被保守拒绝；这是新文档明确接受的权衡，但会误伤常见脚本，建议在教程中给出改写示例（如 `[ab]+`、`(?:ab|cd)+` 也会被拒绝，需拆分为多个选择器）。
+
+#### 10.8.3 编辑器超限对话框与 Activity 生命周期
+
+- **修复确认**：`EditorActivity.onCreate()` 先 `setContentView(binding.root)`，再用 `binding.root.post { if (!isFinishing && !isDestroyed) showOpenError(...) }`（`EditorActivity.kt:143-150`）；`openErrorDialog` 字段持有、`onDestroy` 中 dismiss（`EditorActivity.kt:244-248`）。打开超限脚本的两个用例 2/2 通过，完整两轮 logcat 中 `RootViewWithoutFocusException` 与 `WindowLeaked` 均为 **0**，焦点 flake 已消除。
+- **阻塞残留（高）：超大文本在 Activity stop 时触发 `TransactionTooLargeException`。**
+  - 复现（临时探针，已删除）：打开编辑器，将 `scriptEditor` 设为 `"a".repeat(ScriptLimits.MAX_SCRIPT_BYTES + 1)`，执行 `ActivityScenario.moveToState(Lifecycle.State.CREATED)`（模拟 Home/切后台导致的 stop），系统在 `ActivityClientController.activityStopped` 抛：
+    `android.os.TransactionTooLargeException: data parcel size 529680 bytes`
+    （Bundle 中 `android:viewHierarchyState`/`android:views` 包含 512 KB+ 的 EditText 文本）。
+  - 现有 `oversizedSaveKeepsDirtyAndDoesNotWrite` 断言本身通过（Snackbar、仓库内容不变、dirty），但在一次与其他编辑器用例连续执行时曾以同一异常在 Activity 收尾阶段失败；单独/后续组合又通过，说明是“stop 时保存视图状态”的时序性崩溃，不是断言问题。
+  - 根因：保存守卫（`EditorActivity.kt:732-745`）只阻止写入仓库；EditText 仍持有 >512 KB 文本，`onSaveInstanceState` 的 `super` 会把 view hierarchy 放进 saved state（`EditorActivity.kt:234`），`activityStopped` 的 Binder 事务超过限制。用户粘贴大文本后按 Home/切后台/旋转即可触发，属于**真实崩溃路径**，不是测试专有。
+  - 建议：给 `scriptEditor` 增加按 UTF-8 字节限制的自定义 `InputFilter`（或在粘贴时截断/提示）；或禁用/裁剪 `saveEnabled` 并在 `onSaveInstanceState` 中不保存超大文本；仅靠保存守卫不足。
+  - 影响评估：需要用户粘贴 >512 KB 内容才触发，概率低但后果是应用崩溃/系统异常；在“限制 512 KB”的目标下应视为阻塞修复项。
+
+#### 10.8.4 导入阶段与统一限制
+
+- **导入 20,000 行拒绝**：`MainActivity.importFromUri()` 在 `BoundedTextReader.read()` 后、`repository.create()` 前调用 `ScriptLimits.scriptError(content)`，超限直接 `error(...)`（`MainActivity.kt:965-973`）；不会创建脚本。`BoundedTextReader.MAX_BYTES` 已统一为 `ScriptLimits.MAX_SCRIPT_BYTES`（512 KB），错误文案也改为动态 KB（`BoundedTextReader.kt:7,34-35`）。`ScriptLimitsTest` 覆盖 20k 行/512 KB/多字节边界；**SAF 端到端导入未做设备测试**（见 10.8.5）。
+- **统一限制**：`ScriptLimits.MAX_SCRIPT_BYTES=512*1024`、`MAX_SCRIPT_LINES=20_000`、`scriptError()` 同时检查字节与行数；编辑器打开（`:143`）、保存（`:734`）、运行（`:662`）、首页运行（`MainActivity.kt:779`）、导入（`:970`）、`ScriptService.start`（`ScriptService.kt:34`）全部使用同一函数。
+- **正常脚本不受影响**：JVM 165/165 与仪器化 75/75 中，现有编辑器/保存/运行/备份/UI 用例全部通过；`ScriptLimitsTest` 验证恰好 512 KB、20,000 行边界通过。
+- **保存行为**：`oversizedSaveKeepsDirtyAndDoesNotWrite` 验证 Snackbar「保存失败：脚本超过 512 KB」、仓库内容不变、副标题「未保存的修改」、保存菜单仍启用；该用例在最终两轮完整运行中通过。
+- **残留**：编辑器仍允许输入/粘贴超过 512 KB（见 10.8.3 的 stop 崩溃）；保存守卫本身正确，但输入层未限制。
+
+#### 10.8.5 结论与阻塞判断
+
+- **已确认修复**：RegexGuard 本轮要求的 9 个模式全部符合预期，1MB + `(a+)+$` 仍快速返回；编辑器错误对话框不再产生 `RootViewWithoutFocusException`/`WindowLeaked`；导入在创建前执行 20,000 行/512 KB 校验；保存守卫保持 dirty 且不写入；正常脚本全部通过。
+- **仍存在 1 个阻塞问题**：编辑器内 >512 KB 文本在 Activity stop（Home/切后台/旋转）时触发 `TransactionTooLargeException`（10.8.3）。建议按 InputFilter/save-state 方案修复后重新跑两轮完整仪器化。
+- **非阻塞残留**：RegexGuard 对 `(a{1,2})+` 等变长有界重复仍漏判（中）；`(a|b)+` 等安全交替模式被保守拒绝（低，文档已声明）；SAF 导入端到端、BootReceiver 真实重启、CI tag 构建仍未设备/CI 验证。
+- **是否建议关闭验收/上线**：**暂不建议关闭**，直到 10.8.3 的崩溃路径修复；其余修复项可视为通过。
+
+### 10.9 高危修复复核（第五轮，2026-10-21）
+
+复核范围：`TransactionTooLargeException` 修复、InputFilter/保存守卫、RegexGuard 残留、128 KB + 20,000 行统一限制。只修改测试代码；临时探针已删除；未 commit/tag/push。
+
+#### 10.9.1 结果汇总
+
+| 项 | 结果 |
+| --- | --- |
+| JVM 单元测试 | **173/173 通过**（0 失败/0 跳过） |
+| 仪器化测试（API 35） | **77/77 通过，连续两轮**（`run-emulator-tests.sh`） |
+| Lint | 0 errors，1 warning（既有 `core-ktx` 提示） |
+| assembleDebug | 成功，`MicroAuto-0.9.0.apk` |
+| 完整两轮 logcat | `TransactionTooLargeException` **0**、`RootViewWithoutFocusException` **0**、`WindowLeaked` **0** |
+| 定向编辑器用例 | 大文本 stop/resume、正常文本 recreate、超限保存、超限打开 **5/5 通过** |
+
+#### 10.9.2 `TransactionTooLargeException` 修复
+
+- `EditorActivity.onSaveInstanceState()` 在文本超过 `VIEW_STATE_SAFE_CHARS=64_000` 时暂停 undo 监听、临时 `setText("")`、调用 `super` 保存视图状态，再在 `finally` 中恢复原文本/选区并 `resume`；同时写入 `STATE_TEXT_OMITTED`。`lineNumbers`/`logText` 设置 `freezesText=false`（`EditorActivity.kt:242-270`、`:82`、`:152-153`）。
+- 恢复时若 `STATE_TEXT_OMITTED`，从仓库重新读取内容并恢复（`EditorActivity.kt:272-285`）；大文本不进入 view state，避免 `activityStopped` 的 Binder 事务超限。
+- 验证：
+  - `largeProgrammaticTextDoesNotCrashOnStop`：程序化写入 `MAX_SCRIPT_BYTES + 1` 字符（绕过 InputFilter），`moveToState(CREATED)` → `RESUMED`，文本长度保持，不再抛 `TransactionTooLargeException`；本次复核该用例通过。
+  - `normalTextSurvivesRecreate`：普通文本 `recreate()` 后内容仍是 `log('rotate');`，原有行为未回退。
+  - 完整两轮 logcat 中 `TransactionTooLargeException` 为 **0**；`RootViewWithoutFocusException`/`WindowLeaked` 也为 **0**，焦点/窗口问题保持修复。
+- **说明（非缺陷，已写入 AGENTS）**：超过 64,000 字符的**未保存**内容不会随旋转保留，旋转/重建后回到最近保存版本；正常大小文本不受影响。
+
+#### 10.9.3 InputFilter 与保存守卫
+
+- `ScriptInputGuard`（128 KB 字节、20,000 行）接入 `InputFilter`：普通输入放行、超限插入/替换拒绝并 Snackbar 提示、已在超限文本上的纯删除放行（`ScriptInputGuardTest` 7/7；`EditorActivity.kt:513-537`）。
+- 保存守卫仍有效：`oversizedSaveKeepsDirtyAndDoesNotWrite` 验证「保存失败：脚本超过 128 KB」、仓库内容不变、副标题「未保存的修改」、保存菜单启用；该用例在完整两轮中通过。
+- **残留（中，数据丢失）：拒绝“选中文本 + 超大粘贴”时会删除选区。** 临时探针：编辑器内容 `abcdef`，选中 `cd`（2..4），用 `MAX_SCRIPT_BYTES + 1` 的文本替换，实际结果 `abef`（期望 `abcdef`）。根因：InputFilter 在拒绝时返回 `""`（`EditorActivity.kt:532-533`），Android 将其解释为“用空串替换选区”，于是选区被删除；Snackbar 虽提示，但原文本已丢失。
+  - 建议：拒绝时返回 `dest.subSequence(dstart, dend)`（插入时为空串、替换时保留原选区），或在 Activity 层禁止在超大拒绝时修改编辑器；并补一条“选中文本被拒绝粘贴后保持不变”的仪器化用例。
+  - 影响：不崩溃，但会静默丢失用户选中的内容；属中危数据丢失残留，建议发布前修复。
+
+#### 10.9.4 RegexGuard 矩阵
+
+本轮要求（`RegexGuard.isSafe`，临时探针结果）：
+
+| 模式 | 期望 | isSafe | 结果 |
+| --- | --- | --- | --- |
+| `(a{1,2})+` | 拒绝 | false | 通过 |
+| `(a{0,2})+` | 拒绝 | false | 通过 |
+| `(a{2,3})+` | 拒绝 | false | 通过 |
+| `(a{0,1})+` | 拒绝 | false | 通过 |
+| `(a{2})+` | 放行 | true | 通过 |
+| `(a{2,2})+` | 放行 | true | 通过 |
+| `a+b` | 放行 | true | 通过 |
+| `(ab)+` | 放行 | true | 通过 |
+
+补充矩阵：
+
+| 模式 | isSafe | 说明 |
+| --- | --- | --- |
+| `(a+){2}` / `(a+)?` | true | 有界/可选外层，放行 |
+| `(a?)+` / `(a{2,})+` / `(a|aa)+` | false | 拒绝 |
+| `(a{2,4})+` | false | 变长有界重复嵌套在无界组内，拒绝 |
+| `(a{2,4})` / `(a{2,3}){2}` / `(a+){2,3}` | true | 无外层无界重复或有界外层，放行 |
+| `(a|b)+` / `(ab|cd)+` / `((a|b)c)+` | false | 保守拒绝；`(a|b)+` 等安全模式会被误伤（文档已声明） |
+| `(a|b)` / `(a|b){2}` / `(?:ab)+` | true | 非无界交替/有界重复，放行 |
+
+- 1MB + `(a+)+$`：`RegexGuardTest.oneMegabyteTextWithNestedQuantifierReturnsImmediately` 通过（断言 <1s，实际远低于 1s）。
+- 残留：正则防护仍是启发式；`(a|b)+` 等常见安全交替被保守拒绝（低，文档已说明）；未引入 RE2/J，4096 字符上限内仍以静态规则为主。
+
+#### 10.9.5 统一限制（128 KB + 20,000 行）
+
+- `ScriptLimits`：`MAX_SCRIPT_BYTES=128*1024`、`MAX_SCRIPT_LINES=20_000`、`scriptError()` 同时检查字节与行数；错误文案为「脚本超过 128 KB（当前约 N KB）」/「脚本超过 20,000 行」。
+- 接入点一致：导入（`MainActivity.kt:965-973`，先校验后 `repository.create`）、编辑器打开（`:143-148`）、保存（`:824-834`）、运行（`:751-761`）、首页运行（`MainActivity.kt:779`）、`ScriptService.start`（`ScriptService.kt:34`）。`BoundedTextReader.MAX_BYTES` 直接引用 `ScriptLimits.MAX_SCRIPT_BYTES`，错误文案动态为 128 KB（`BoundedTextReader.kt:7,34-35`）。
+- 正常脚本不受影响：JVM 173/173、仪器化 77/77 中现有编辑/保存/运行/备份/UI 用例全部通过；`ScriptLimitsTest`/`ScriptInputGuardTest` 覆盖 128 KB、20,000 行、精确边界、多字节 UTF-8、纯删除。
+- 导入 20,000 行拒绝为**代码审查 + `ScriptLimits` 单测**确认（`importFromUri` 在 `create` 前调用 `scriptError`）；SAF 端到端导入未做设备测试。
+
+#### 10.9.6 结论与阻塞判断
+
+- **高危崩溃已修复**：`TransactionTooLargeException` 的确定性路径（大文本 + `moveToState(CREATED)`/恢复）通过；正常文本 recreate 保留；完整两轮 logcat 三类异常均为 0。
+- **RegexGuard 本轮矩阵全部通过**；变长有界重复（`(a{1,2})+` 等）已被拒绝；1MB `(a+)+$` 仍快速返回；剩余为保守误伤 `(a|b)+` 等（低，已文档化）。
+- **统一限制与保存守卫通过**：128 KB + 20,000 行在各入口一致，超限保存保持 dirty 且不写入；正常脚本不受影响。
+- **仍建议发布前修复 1 个中危残留**：InputFilter 拒绝“选中文本 + 超限粘贴”时删除选区（`abcdef` → `abef`，`EditorActivity.kt:532-533`），属静默数据丢失，不崩溃但应修复；其余无高危/崩溃阻塞。
+- 未覆盖：SAF 导入端到端、BootReceiver 真实重启/改时间、CI tag 构建（沿用前文）。
+
+### 附：第三轮测试轮次记录
+
+| 阶段 | JVM | 仪器化 | 说明 |
+| --- | --- | --- | --- |
+| 基线（开发者自测） | 154 | 70 | `testDebugUnitTest + lintDebug + assembleDebug` 通过 |
+| 加入新测试后首轮完整 | 165/165 | 74/74 | `run-emulator-tests.sh`；此轮通过 |
+| 第二轮完整（flake） | — | 74，1 失败 | `characterOversized...` 因基础窗口无焦点抛 `RootViewWithoutFocusException`（测试侧 `inRoot(isDialog())` 修正） |
+| 定向稳定性复跑 | — | 2/2 × 3 次 | 修正后连续 3 次通过 |
+| 修复后完整第 A 轮 | — | 74/74 | `run-emulator-tests.sh` |
+| 修复后完整第 B 轮 | — | 74/74 | `run-emulator-tests.sh`，未见 flaky |
+| SEC-010 dry-run | — | — | 无 keystore exit 1；debug keystore exit 0；assembleDebug exit 0 |
+| 最终 lint/assemble | — | — | 0 errors / 1 warning；`MicroAuto-0.9.0.apk` |

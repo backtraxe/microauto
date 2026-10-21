@@ -36,6 +36,17 @@ class EditorUndoManager(
         }
     }
 
+    fun pause() {
+        stop()
+    }
+
+    fun resume() {
+        if (!installed) {
+            editor.addTextChangedListener(this)
+            installed = true
+        }
+    }
+
     fun reset() {
         history.clear()
         lastChangeAt = 0L

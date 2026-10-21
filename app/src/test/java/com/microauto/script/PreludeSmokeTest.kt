@@ -16,6 +16,7 @@ class PreludeSmokeTest {
         var textContainsValue: String? = null
         var patternSource: String? = null
         var patternFlags: String? = null
+        var rejectTextMatches = false
         var idValue: String? = null
         var idContainsValue: String? = null
         var descValue: String? = null
@@ -36,6 +37,9 @@ class PreludeSmokeTest {
         }
 
         fun textMatches(source: String, flags: String): FakeSelector {
+            if (rejectTextMatches) {
+                throw IllegalArgumentException("正则表达式包含嵌套量词，可能造成卡顿，已拒绝")
+            }
             patternSource = source
             patternFlags = flags
             return this
@@ -318,5 +322,26 @@ class PreludeSmokeTest {
         }
         assertFalse(fake.logs.contains("should not run"))
         assertTrue(error.message?.contains("exit") == true)
+    }
+
+    @Test
+    fun rejectedRegexIsCatchableFromScript() {
+        val fake = FakeNative().apply { selector.rejectTextMatches = true }
+        run(
+            fake,
+            """
+            var caught = false;
+            try {
+                textMatches(/(a+)+/);
+            } catch (e) {
+                caught = true;
+                log(String(e));
+            }
+            log("caught=" + caught);
+            """.trimIndent()
+        )
+
+        assertTrue(fake.logs.any { it.contains("嵌套量词") })
+        assertTrue(fake.logs.contains("caught=true"))
     }
 }

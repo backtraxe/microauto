@@ -4,6 +4,8 @@ import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.widget.EditText
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.closeSoftKeyboard
@@ -14,6 +16,7 @@ import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.replaceText
 import androidx.test.espresso.assertion.ViewAssertions.doesNotExist
 import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
@@ -22,7 +25,9 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.microauto.R
 import com.microauto.TestData
 import com.microauto.accessibility.AccessibilityUtils
+import com.microauto.core.ScriptLimits
 import com.microauto.script.ScriptRepository
+import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.not
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -121,6 +126,146 @@ class EditorActivityTest {
             onView(withId(R.id.apiPage)).check(matches(isDisplayed()))
             onView(withText("text(value)")).check(matches(isDisplayed()))
             onView(withText("选择器")).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun oversizedScriptIsBlockedWithMessage() {
+        val large = (1..ScriptLimits.MAX_SCRIPT_LINES + 1).joinToString("\n") { "x" }
+        ScriptRepository(context).save(scriptId, large)
+
+        launch().use {
+            onView(withText("无法打开脚本")).inRoot(isDialog()).check(matches(isDisplayed()))
+            onView(
+                withText(containsString("脚本超过 20,000 行"))
+            ).inRoot(isDialog()).check(matches(isDisplayed()))
+            onView(withText("知道了")).inRoot(isDialog()).perform(click())
+        }
+    }
+
+    @Test
+    fun characterOversizedScriptIsBlockedWithMessage() {
+        val large = "a".repeat(ScriptLimits.MAX_SCRIPT_BYTES + 1)
+        ScriptRepository(context).save(scriptId, large)
+
+        launch().use {
+            onView(withText("无法打开脚本")).inRoot(isDialog()).check(matches(isDisplayed()))
+            onView(withText(containsString("脚本超过 128 KB")))
+                .inRoot(isDialog())
+                .check(matches(isDisplayed()))
+            onView(withText("知道了")).inRoot(isDialog()).perform(click())
+        }
+    }
+
+    @Test
+    fun oversizedSaveKeepsDirtyAndDoesNotWrite() {
+        val original = ScriptRepository(context).read(scriptId)!!
+        val large = "a".repeat(ScriptLimits.MAX_SCRIPT_BYTES + 1)
+        launch().use { scenario ->
+            setTextIgnoringFilters(scenario, large)
+            onView(withId(R.id.action_save)).perform(click())
+
+            onView(withText(containsString("保存失败：脚本超过 128 KB")))
+                .check(matches(isDisplayed()))
+            assertEquals(original, ScriptRepository(context).read(scriptId))
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertEquals("未保存的修改", toolbar.subtitle.toString())
+                assertTrue(toolbar.menu.findItem(R.id.action_save).isEnabled)
+            }
+        }
+    }
+
+    @Test
+    fun largeProgrammaticTextDoesNotCrashOnStop() {
+        val largeLength = ScriptLimits.MAX_SCRIPT_BYTES + 1
+        launch().use { scenario ->
+            setTextIgnoringFilters(scenario, "a".repeat(largeLength))
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                assertEquals(largeLength, editor.text.length)
+            }
+            scenario.moveToState(Lifecycle.State.CREATED)
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                assertEquals(largeLength, editor.text.length)
+            }
+        }
+    }
+
+    private fun setTextIgnoringFilters(
+        scenario: ActivityScenario<EditorActivity>,
+        text: String
+    ) {
+        scenario.onActivity { activity ->
+            val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+            val filters = editor.filters
+            editor.filters = emptyArray()
+            editor.setText(text)
+            editor.filters = filters
+        }
+    }
+
+    @Test
+    fun normalTextSurvivesRecreate() {
+        launch().use { scenario ->
+            onView(withId(R.id.scriptEditor)).perform(replaceText("log('rotate');"))
+            scenario.recreate()
+            onView(withId(R.id.scriptEditor)).check(matches(withText("log('rotate');")))
+        }
+    }
+
+    @Test
+    fun rejectedPasteOverSelectionKeepsOriginalText() {
+        launch().use { scenario ->
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                editor.setText("abcdef")
+                editor.setSelection(2, 4)
+
+                editor.text.replace(
+                    2,
+                    4,
+                    "x".repeat(ScriptLimits.MAX_SCRIPT_BYTES + 1)
+                )
+
+                assertEquals("abcdef", editor.text.toString())
+            }
+        }
+    }
+
+    @Test
+    fun rejectedPureInsertionKeepsOriginalText() {
+        launch().use { scenario ->
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                editor.setText("abcdef")
+                editor.setSelection(6)
+
+                editor.text.replace(
+                    6,
+                    6,
+                    "x".repeat(ScriptLimits.MAX_SCRIPT_BYTES + 1)
+                )
+
+                assertEquals("abcdef", editor.text.toString())
+            }
+        }
+    }
+
+    @Test
+    fun inputFilterAllowsDeletion() {
+        launch().use { scenario ->
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                editor.setText("abcdef")
+                editor.setSelection(2, 4)
+
+                editor.text.replace(2, 4, "")
+
+                assertEquals("abef", editor.text.toString())
+            }
         }
     }
 

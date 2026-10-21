@@ -19,7 +19,7 @@ data class Selector(
         val nodeText = node.text
         if (text != null && nodeText != text) return false
         if (textContains != null && nodeText?.contains(textContains) != true) return false
-        if (textPattern != null && (nodeText == null || !textPattern.matcher(nodeText).find())) return false
+        if (textPattern != null && !RegexGuard.matches(textPattern, nodeText)) return false
         if (id != null && node.viewId != id) return false
         if (idContains != null && node.viewId?.contains(idContains) != true) return false
         if (desc != null && node.desc != desc) return false

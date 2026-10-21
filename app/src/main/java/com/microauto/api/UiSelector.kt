@@ -1,5 +1,6 @@
 package com.microauto.api
 
+import com.microauto.core.RegexGuard
 import com.microauto.core.Selector
 import java.util.regex.Pattern
 
@@ -11,8 +12,10 @@ class UiSelector internal constructor(internal val selector: Selector) {
 
     fun textContains(value: String) = UiSelector(selector.copy(textContains = value))
 
-    fun textMatches(source: String, flags: String = "") =
-        UiSelector(selector.copy(textPattern = compile(source, flags)))
+    fun textMatches(source: String, flags: String = ""): UiSelector {
+        RegexGuard.validate(source)
+        return UiSelector(selector.copy(textPattern = compile(source, flags)))
+    }
 
     fun id(value: String) = UiSelector(selector.copy(id = value))
 

@@ -80,6 +80,7 @@ git push origin v0.4.0
 
 - **Debug**：仓库内固定 `signing/debug.keystore`（alias `androiddebugkey`，密码 `android`）。本地与 CI 的 debug APK 签名一致，可直接覆盖安装。
 - **Release**：`~/.microauto-signing/microauto-release.jks`，本地通过根目录 `keystore.properties` 引用（已 gitignore）。
+- **缺少 release keystore 时 `:app:assembleRelease` 会直接失败**，不再回退到 debug 签名；`:app:assembleDebug`、单元测试和 Lint 不受影响。
 - **CI**：通过 GitHub Secrets 注入 `RELEASE_KEYSTORE_BASE64`、`RELEASE_KEYSTORE_PASSWORD`、`RELEASE_KEY_ALIAS`、`RELEASE_KEY_PASSWORD`；打 `v*` tag 时构建并校验 release 签名，再创建 Release。
 - **务必备份** keystore 与密码；丢失后无法对已发布应用做覆盖升级。
 
@@ -171,6 +172,9 @@ dump();
 - 非 root，必须依赖无障碍服务；部分应用会检测或拒绝无障碍操作。
 - 锁屏、息屏时无法操作界面。
 - 定时触发受系统 Doze 和厂商保活策略影响，需要自行加白名单。
+- 导入、编辑和运行统一限制为脚本不超过 128 KB（UTF-8 字节）且不超过 20,000 行；超过时会提示并拒绝保存/运行。
+- 编辑器内容超过 64,000 字符时不会随旋转保存（避免系统 view state 过大），旋转后会回到最近保存的版本；仅退到后台再返回、未重建 Activity 时仍保留当前内容。
+- `textMatches` 正则最长 1024 字符、单个节点最多匹配 4096 字符；嵌套量词、变长有界量词（如 `(a{1,2})+`）与无界重复的交替分支会被拒绝（保守策略）。
 - 首版没有 OCR、找图、悬浮窗和可视化选择器。
 
 ## 目录
