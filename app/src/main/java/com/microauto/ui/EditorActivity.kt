@@ -2,8 +2,11 @@ package com.microauto.ui
 
 import android.Manifest
 import android.app.AlarmManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
@@ -53,6 +56,7 @@ import com.microauto.core.FindReplaceEngine
 import com.microauto.core.ScheduleTime
 import com.microauto.core.ScriptLimits
 import com.microauto.core.ScriptInputGuard
+import com.microauto.core.TextLines
 import com.microauto.databinding.ActivityEditorBinding
 import com.microauto.databinding.DialogRenameBinding
 import com.microauto.databinding.DialogVersionNoteBinding
@@ -61,6 +65,9 @@ import com.microauto.databinding.SheetScheduleBinding
 import com.microauto.schedule.SchedulePrefs
 import com.microauto.schedule.ScriptScheduler
 import com.microauto.script.RunLog
+import com.microauto.script.RunLogMeta
+import com.microauto.script.RunPhase
+import com.microauto.script.RunSource
 import com.microauto.script.RunState
 import com.microauto.script.ScriptRepository
 import com.microauto.script.ScriptService
@@ -75,6 +82,7 @@ class EditorActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_SCRIPT_ID = "script_id"
+        const val EXTRA_OPEN_LOG = "open_log"
 
         private const val TAB_CODE = 0
         private const val TAB_LOG = 1
@@ -122,6 +130,8 @@ class EditorActivity : AppCompatActivity() {
     private var findIndex = -1
     private var findQuery = ""
     private var findCaseSensitive = false
+    private var logAtBottom = true
+    private var currentLogMeta: RunLogMeta? = null
     private val findMatchColor = Color.argb(90, 255, 193, 7)
     private val findCurrentColor = Color.argb(150, 255, 152, 0)
 
@@ -144,7 +154,12 @@ class EditorActivity : AppCompatActivity() {
             return
         }
         repository = ScriptRepository(this)
-        val meta = repository.find(scriptId) ?: run {
+        val meta = repository.find(scriptId)
+        if (meta == null) {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            )
             finish()
             return
         }
@@ -164,6 +179,7 @@ class EditorActivity : AppCompatActivity() {
             return
         }
         binding.logScroll.clipToOutline = true
+        setupLogPage()
         setupTabs(savedInstanceState)
         renderApiDocs()
 
@@ -332,7 +348,8 @@ class EditorActivity : AppCompatActivity() {
                 }
                 if (showLog) {
                     binding.logScroll.post {
-                        binding.logScroll.fullScroll(View.FOCUS_DOWN)
+                        if (logAtBottom) binding.logScroll.fullScroll(View.FOCUS_DOWN)
+                        updateLogFollowState()
                     }
                 }
             }
@@ -341,8 +358,188 @@ class EditorActivity : AppCompatActivity() {
 
             override fun onTabReselected(tab: TabLayout.Tab) = Unit
         })
-        val index = savedInstanceState?.getInt(STATE_TAB, TAB_CODE) ?: TAB_CODE
+        val index = savedInstanceState?.getInt(STATE_TAB, TAB_CODE)
+            ?: if (intent.getBooleanExtra(EXTRA_OPEN_LOG, false)) TAB_LOG else TAB_CODE
         binding.editorTabs.getTabAt(index)?.select()
+    }
+
+    private fun setupLogPage() {
+        binding.logScroll.setOnScrollChangeListener { _, _, _, _, _ ->
+            updateLogFollowState()
+        }
+        binding.btnLogCopy.setOnClickListener { copyLog() }
+        binding.btnLogClear.setOnClickListener { confirmClearLog() }
+        binding.btnLogBottom.setOnClickListener {
+            binding.logScroll.post { binding.logScroll.fullScroll(View.FOCUS_DOWN) }
+        }
+        binding.btnLogRunCurrent.setOnClickListener { binding.btnRun.performClick() }
+        binding.btnJumpToLine.setOnClickListener {
+            currentLogMeta?.errorLine?.let { jumpToLine(it) }
+        }
+        binding.errorCard.setOnClickListener {
+            currentLogMeta?.errorLine?.let { jumpToLine(it) }
+        }
+    }
+
+    private fun updateLogFollowState() {
+        val content = binding.logScroll.getChildAt(0) ?: return
+        val distance = content.height - binding.logScroll.height - binding.logScroll.scrollY
+        logAtBottom = distance <= dp(48)
+        binding.btnLogBottom.isVisible =
+            !logAtBottom && binding.logText.text?.isNotBlank() == true
+    }
+
+    private fun updateLogHeader() {
+        val meta = RunLog.meta.value
+        currentLogMeta = meta
+        val hasText = RunLog.text.value.isNotBlank()
+        binding.logTitle.setText(
+            if (meta == null && hasText) {
+                R.string.run_log_legacy_title
+            } else {
+                R.string.run_log_title
+            }
+        )
+        binding.logMeta.isVisible = meta != null || hasText
+        binding.logMeta.text = if (meta != null) {
+            logMetaText(meta)
+        } else {
+            getString(R.string.run_log_unknown_source)
+        }
+        binding.logStatusChip.isVisible = meta != null
+        meta?.let { applyLogChip(it.status) }
+
+        val foreignMeta = meta?.takeIf { it.scriptId != null && it.scriptId != scriptId }
+        binding.logForeignBanner.isVisible = foreignMeta != null
+        if (foreignMeta != null) {
+            binding.logForeignText.text = getString(
+                R.string.run_log_foreign_format,
+                foreignMeta.scriptName,
+            )
+        }
+        renderErrorCard(meta)
+        binding.btnLogCopy.isEnabled = hasText
+        binding.btnLogClear.isEnabled =
+            (hasText || meta != null) && !RunState.running.value
+    }
+
+    private fun logMetaText(meta: RunLogMeta): String = buildString {
+        append("「${meta.scriptName}」· ${DateFormats.formatTime(meta.startedAt)}")
+        val finishedAt = meta.finishedAt
+        if (finishedAt != null) {
+            val duration = (finishedAt - meta.startedAt).coerceAtLeast(0)
+            append(" · ${durationText(duration)}")
+        }
+        if (meta.source == RunSource.SCHEDULE) append(" · 定时任务")
+    }
+
+    private fun durationText(millis: Long): String {
+        val seconds = millis / 1_000.0
+        return if (seconds < 10) {
+            String.format(Locale.US, "%.1f 秒", seconds)
+        } else {
+            "${kotlin.math.round(seconds).toLong()} 秒"
+        }
+    }
+
+    private fun applyLogChip(status: RunPhase) {
+        val (label, backgroundAttr, textAttr) = when (status) {
+            RunPhase.SUCCESS, RunPhase.RUNNING, RunPhase.STARTING -> Triple(
+                when (status) {
+                    RunPhase.SUCCESS -> R.string.run_log_chip_success
+                    RunPhase.STARTING -> R.string.run_log_chip_starting
+                    else -> R.string.run_log_chip_running
+                },
+                com.google.android.material.R.attr.colorPrimaryContainer,
+                com.google.android.material.R.attr.colorOnPrimaryContainer,
+            )
+
+            RunPhase.FAILED -> Triple(
+                R.string.run_log_chip_failed,
+                com.google.android.material.R.attr.colorErrorContainer,
+                com.google.android.material.R.attr.colorOnErrorContainer,
+            )
+
+            RunPhase.STOPPED -> Triple(
+                R.string.run_log_chip_stopped,
+                com.google.android.material.R.attr.colorSurfaceContainerHighest,
+                com.google.android.material.R.attr.colorOnSurfaceVariant,
+            )
+        }
+        binding.logStatusChip.setText(label)
+        binding.logStatusChip.backgroundTintList = ColorStateList.valueOf(
+            MaterialColors.getColor(binding.logStatusChip, backgroundAttr)
+        )
+        binding.logStatusChip.setTextColor(
+            MaterialColors.getColor(binding.logStatusChip, textAttr)
+        )
+    }
+
+    private fun renderErrorCard(meta: RunLogMeta?) {
+        val message = meta?.errorMessage
+        if (message == null) {
+            binding.errorCard.isVisible = false
+            return
+        }
+        val line = meta.errorLine
+        val foreign = meta.scriptId != null && meta.scriptId != scriptId
+        val label = buildString {
+            if (foreign) append("「${meta.scriptName}」· ")
+            if (line != null) append("第 $line 行 · ")
+            append(message)
+        }
+        val canJump = line != null && !foreign
+        if (binding.errorText.text.toString() != label) {
+            binding.errorText.text = label
+        }
+        binding.errorCard.contentDescription = if (canJump) {
+            "$label，跳到第 $line 行"
+        } else {
+            label
+        }
+        binding.btnJumpToLine.isVisible = canJump
+        binding.btnJumpToLine.text = if (canJump) "跳到第 $line 行" else ""
+        binding.btnJumpToLine.contentDescription = if (canJump) "跳到第 $line 行" else ""
+        binding.errorCard.isClickable = canJump
+        binding.errorCard.isFocusable = canJump
+        binding.errorCard.isVisible = true
+    }
+
+    private fun jumpToLine(line: Int) {
+        val offset = TextLines.offsetOfLine(binding.scriptEditor.text.toString(), line)
+            ?: return
+        binding.editorTabs.getTabAt(TAB_CODE)?.select()
+        binding.scriptEditor.setSelection(offset)
+        binding.scriptEditor.requestFocus()
+        binding.scriptEditor.post {
+            binding.scriptEditor.bringPointIntoView(offset)
+            getSystemService(InputMethodManager::class.java)
+                ?.hideSoftInputFromWindow(binding.root.windowToken, 0)
+        }
+    }
+
+    private fun copyLog() {
+        val text = binding.logText.text?.toString().orEmpty()
+        if (text.isBlank()) return
+        val clipboard = getSystemService(ClipboardManager::class.java) ?: return
+        clipboard.setPrimaryClip(ClipData.newPlainText("运行日志", text))
+        Snackbar.make(binding.root, "日志已复制", Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun confirmClearLog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.run_log_clear_title)
+            .setMessage(R.string.run_log_clear_message)
+            .setPositiveButton(R.string.run_log_clear) { _, _ ->
+                if (RunState.running.value) {
+                    Snackbar.make(binding.root, "运行中无法清空日志", Snackbar.LENGTH_SHORT)
+                        .show()
+                } else {
+                    RunLog.clear()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun showPage(page: View, visible: Boolean) {
@@ -753,9 +950,16 @@ class EditorActivity : AppCompatActivity() {
                         this@EditorActivity,
                         null,
                         "看界面",
-                        "toast(\"5 秒内切到目标界面\"); sleep(5000); dump();"
+                        "toast(\"5 秒内切到目标界面\"); sleep(5000); dump();",
+                        RunSource.DUMP,
                     )
                 }.onFailure {
+                    RunState.failStart(
+                        it.message ?: "无法启动运行服务",
+                        null,
+                        "看界面",
+                        RunSource.DUMP,
+                    )
                     Snackbar.make(
                         binding.root,
                         "启动失败：${it.message}",
@@ -780,8 +984,14 @@ class EditorActivity : AppCompatActivity() {
         }
         ensureNotificationPermission()
         runCatching {
-            ScriptService.start(this, scriptId, scriptName, content)
+            ScriptService.start(this, scriptId, scriptName, content, RunSource.MANUAL)
         }.onFailure {
+            RunState.failStart(
+                it.message ?: "无法启动运行服务",
+                scriptId,
+                scriptName,
+                RunSource.MANUAL,
+            )
             Snackbar.make(binding.root, "启动失败：${it.message}", Snackbar.LENGTH_LONG).show()
         }
         showLogTab()
@@ -824,11 +1034,17 @@ class EditorActivity : AppCompatActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
+                    RunLog.meta.collect { updateLogHeader() }
+                }
+                launch {
                     RunLog.text.collect { text ->
+                        val follow = logAtBottom
                         binding.logText.text = text
                         binding.logEmpty.isVisible = text.isBlank()
+                        updateLogHeader()
                         binding.logScroll.post {
-                            binding.logScroll.fullScroll(View.FOCUS_DOWN)
+                            if (follow) binding.logScroll.fullScroll(View.FOCUS_DOWN)
+                            updateLogFollowState()
                         }
                     }
                 }
@@ -837,6 +1053,9 @@ class EditorActivity : AppCompatActivity() {
                         binding.btnRun.isEnabled = !running
                         binding.btnStop.isEnabled = running
                         binding.btnDump.isEnabled = !running
+                        binding.btnLogClear.isEnabled =
+                            (binding.logText.text?.isNotBlank() == true ||
+                                RunLog.meta.value != null) && !running
                         showRunningIndicator(running)
                     }
                 }

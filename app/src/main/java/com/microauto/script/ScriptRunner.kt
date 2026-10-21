@@ -6,6 +6,32 @@ import com.microauto.accessibility.ScreenState
 import com.microauto.core.DateFormats
 import org.mozilla.javascript.RhinoException
 
+internal data class RhinoErrorInfo(
+    val line: Int?,
+    val message: String,
+    val builtinApi: Boolean,
+)
+
+internal fun describeRhinoError(error: RhinoException): RhinoErrorInfo {
+    val details = runCatching { error.details() }.getOrNull().orEmpty()
+    val source = runCatching { error.sourceName() }.getOrNull()
+    val line = runCatching { error.lineNumber() }.getOrNull()?.takeIf { it > 0 }
+    return when {
+        source == "script.js" && line != null ->
+            RhinoErrorInfo(line = line, message = details, builtinApi = false)
+
+        source == "prelude.js" ->
+            RhinoErrorInfo(
+                line = null,
+                message = "内置 API 错误：$details",
+                builtinApi = true,
+            )
+
+        else ->
+            RhinoErrorInfo(line = null, message = details, builtinApi = false)
+    }
+}
+
 object ScriptRunner {
     private const val MAX_RUN_MILLIS = 10 * 60 * 1000L
 
@@ -20,13 +46,14 @@ object ScriptRunner {
 
     fun run(context: Context, script: String): Boolean {
         if (running) {
-            RunLog.append("[跳过] 已有脚本在运行")
             return false
         }
         running = true
         cancelRequested = false
         Thread.interrupted()
         currentThread = Thread.currentThread()
+        val runStartedAt = RunState.snapshot.value?.startedAt
+        RunState.markRunning(runStartedAt)
         val startedAt = System.currentTimeMillis()
         RunLog.append("▶ ${timestamp()} 开始执行")
         try {
@@ -40,14 +67,17 @@ object ScriptRunner {
                 }
             }
             if (service == null) {
+                recordError("无障碍服务未开启", runStartedAt)
                 RunLog.append("[错误] 无障碍服务未开启")
                 return false
             }
             if (!ScreenState.isInteractive(context)) {
+                recordError("屏幕未点亮，已终止", runStartedAt)
                 RunLog.append("[错误] 屏幕未点亮，已终止")
                 return false
             }
             if (ScreenState.isLocked(context)) {
+                recordError("屏幕已锁定，请先解锁", runStartedAt)
                 RunLog.append("[错误] 屏幕已锁定，请先解锁")
                 return false
             }
@@ -56,7 +86,7 @@ object ScriptRunner {
             RunLog.append("✔ ${timestamp()} 执行结束（${System.currentTimeMillis() - startedAt} ms）")
             return true
         } catch (error: Throwable) {
-            return handleError(error)
+            return handleError(error, runStartedAt)
         } finally {
             ScriptExecutionGuard.clear()
             running = false
@@ -71,7 +101,7 @@ object ScriptRunner {
 
     fun isRunning(): Boolean = running
 
-    private fun handleError(error: Throwable): Boolean {
+    private fun handleError(error: Throwable, runStartedAt: Long?): Boolean {
         val exit = findCause(error, ScriptExitException::class.java)
         if (exit != null) {
             RunLog.append("■ ${timestamp()} 脚本主动退出")
@@ -84,7 +114,9 @@ object ScriptRunner {
         }
         val timeout = findCause(error, ScriptTimeoutException::class.java)
         if (timeout != null) {
-            RunLog.append("[错误] $timeout")
+            val message = timeout.message ?: "脚本执行超时"
+            recordError(message, runStartedAt)
+            RunLog.append("[错误] $message")
             return false
         }
         if (findCause(error, InterruptedException::class.java) != null || Thread.currentThread().isInterrupted) {
@@ -92,12 +124,25 @@ object ScriptRunner {
             return false
         }
         if (error is RhinoException) {
+            recordRhinoError(error, runStartedAt)
             RunLog.append("[脚本错误] ${error.details()}")
             error.scriptStackTrace?.takeIf { it.isNotBlank() }?.let { RunLog.append(it) }
             return false
         }
+        recordError("${error.javaClass.simpleName}: ${error.message}", runStartedAt)
         RunLog.append("[错误] ${error.javaClass.simpleName}: ${error.message}")
         return false
+    }
+
+    private fun recordRhinoError(error: RhinoException, runStartedAt: Long?) {
+        val info = describeRhinoError(error)
+        RunState.recordError(info.line, info.message, runStartedAt)
+        RunLog.recordError(info.line, info.message, runStartedAt)
+    }
+
+    private fun recordError(message: String, runStartedAt: Long?) {
+        RunState.recordError(null, message, runStartedAt)
+        RunLog.recordError(null, message, runStartedAt)
     }
 
     private fun findCause(error: Throwable, type: Class<out Throwable>): Throwable? {

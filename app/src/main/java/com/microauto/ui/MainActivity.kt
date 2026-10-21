@@ -50,6 +50,9 @@ import com.microauto.schedule.SchedulePrefs
 import com.microauto.schedule.ScriptScheduler
 import com.microauto.script.FolderMeta
 import com.microauto.script.RepositoryHealth
+import com.microauto.script.RunPhase
+import com.microauto.script.RunSnapshot
+import com.microauto.script.RunSource
 import com.microauto.script.RunState
 import com.microauto.script.ScriptBackup
 import com.microauto.script.ScriptMeta
@@ -71,6 +74,20 @@ class MainActivity : AppCompatActivity() {
     private var accessibilityDialog: AlertDialog? = null
     private val searchHandler = Handler(Looper.getMainLooper())
     private val searchRefresh = Runnable { refresh() }
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private var runStatusShown = false
+    private var observedAnySnapshot = false
+    private var lastRenderedStartedAt: Long? = null
+    private var lastAnnouncedPhase: RunPhase? = null
+    private val statusTicker = object : Runnable {
+        override fun run() {
+            val snapshot = RunState.snapshot.value ?: return
+            if (!snapshot.phase.isActive() || !runStatusShown) return
+            binding.runStatusMeta.text = activeMeta(snapshot)
+            statusHandler.postDelayed(this, STATUS_TICK_MS)
+        }
+    }
+    private var statusHide: Runnable? = null
 
     private val importLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -262,19 +279,283 @@ class MainActivity : AppCompatActivity() {
             importLauncher.launch(arrayOf("*/*"))
         }
         binding.btnEmptyFolder.setOnClickListener { newFolder() }
+        binding.bottomStack.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateListPadding()
+        }
     }
 
     private fun observeRunState() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                combine(RunState.running, RunState.activeScriptId) { running, scriptId ->
-                    running to scriptId
-                }.collect { (running, scriptId) ->
+                combine(
+                    RunState.running,
+                    RunState.activeScriptId,
+                    RunState.snapshot,
+                ) { running, scriptId, snapshot ->
+                    Triple(running, scriptId, snapshot)
+                }.collect { (running, scriptId, snapshot) ->
                     adapter.setRunState(running, scriptId)
+                    renderRunStatus(snapshot)
                 }
             }
         }
     }
+
+    private fun renderRunStatus(snapshot: RunSnapshot?) {
+        val firstObservation = !observedAnySnapshot
+        observedAnySnapshot = true
+        if (snapshot == null || snapshot.source == RunSource.DUMP) {
+            statusHandler.removeCallbacks(statusTicker)
+            cancelStatusHide()
+            setRunStatusVisible(false)
+            if (firstObservation) {
+                lastRenderedStartedAt = snapshot?.startedAt
+                lastAnnouncedPhase = snapshot?.phase
+            }
+            return
+        }
+        if (snapshot.phase.isRestorableResult() &&
+            snapshot.finishedAt != null &&
+            System.currentTimeMillis() - snapshot.finishedAt > RESULT_RESTORE_WINDOW_MS
+        ) {
+            RunState.dismiss(snapshot.startedAt)
+            return
+        }
+
+        if (firstObservation) {
+            lastRenderedStartedAt = snapshot.startedAt
+            lastAnnouncedPhase = snapshot.phase
+        } else if (lastRenderedStartedAt != snapshot.startedAt) {
+            lastRenderedStartedAt = snapshot.startedAt
+            lastAnnouncedPhase = null
+        }
+
+        binding.runStatusTitle.text = statusTitle(snapshot)
+        binding.runStatusMeta.text = statusMeta(snapshot)
+        bindStatusIcon(snapshot.phase)
+        bindStatusAction(snapshot)
+        setRunStatusVisible(true)
+
+        if (snapshot.phase != lastAnnouncedPhase) {
+            announcementFor(snapshot)?.let { binding.root.announceForAccessibility(it) }
+            lastAnnouncedPhase = snapshot.phase
+        }
+
+        statusHandler.removeCallbacks(statusTicker)
+        cancelStatusHide()
+        when (snapshot.phase) {
+            RunPhase.STARTING, RunPhase.RUNNING -> {
+                statusHandler.postDelayed(statusTicker, STATUS_TICK_MS)
+            }
+
+            RunPhase.SUCCESS -> {
+                scheduleStatusHide(snapshot.startedAt, SUCCESS_VISIBLE_MS)
+            }
+
+            RunPhase.STOPPED -> {
+                scheduleStatusHide(snapshot.startedAt, STOPPED_VISIBLE_MS)
+            }
+
+            RunPhase.FAILED -> Unit
+        }
+    }
+
+    private fun scheduleStatusHide(expectedStartedAt: Long, delayMillis: Long) {
+        cancelStatusHide()
+        val action = Runnable { RunState.dismiss(expectedStartedAt) }
+        statusHide = action
+        statusHandler.postDelayed(action, delayMillis)
+    }
+
+    private fun cancelStatusHide() {
+        statusHide?.let { statusHandler.removeCallbacks(it) }
+        statusHide = null
+    }
+
+    private fun bindStatusIcon(phase: RunPhase) {
+        val (icon, colorAttr) = when (phase) {
+            RunPhase.STARTING, RunPhase.RUNNING ->
+                R.drawable.ic_play_arrow to androidx.appcompat.R.attr.colorPrimary
+
+            RunPhase.SUCCESS ->
+                R.drawable.ic_check to androidx.appcompat.R.attr.colorPrimary
+
+            RunPhase.FAILED ->
+                R.drawable.ic_warning to androidx.appcompat.R.attr.colorError
+
+            RunPhase.STOPPED ->
+                R.drawable.ic_stop to com.google.android.material.R.attr.colorOnSurfaceVariant
+        }
+        binding.runStatusIcon.setImageResource(icon)
+        binding.runStatusIcon.imageTintList = ColorStateList.valueOf(
+            MaterialColors.getColor(binding.runStatusCard, colorAttr)
+        )
+    }
+
+    private fun bindStatusAction(snapshot: RunSnapshot) {
+        val active = snapshot.phase == RunPhase.STARTING || snapshot.phase == RunPhase.RUNNING
+        binding.runStatusClose.isVisible = !active
+        binding.runStatusClose.contentDescription =
+            "关闭「${snapshot.scriptName}」的运行状态"
+        binding.runStatusAction.text = if (active) "停止" else "查看日志"
+        binding.runStatusAction.contentDescription = if (active) {
+            "停止运行「${snapshot.scriptName}」"
+        } else {
+            "查看「${snapshot.scriptName}」的运行日志"
+        }
+        binding.runStatusAction.setOnClickListener {
+            if (active) {
+                RunState.activeToken.value?.let { token -> ScriptService.stop(this, token) }
+            } else {
+                openRunLog(snapshot)
+            }
+        }
+        binding.runStatusClose.setOnClickListener {
+            RunState.dismiss(snapshot.startedAt)
+        }
+    }
+
+    private fun statusTitle(snapshot: RunSnapshot): String = when (snapshot.phase) {
+        RunPhase.STARTING -> "正在启动「${snapshot.scriptName}」"
+        RunPhase.RUNNING -> "正在运行「${snapshot.scriptName}」"
+        RunPhase.SUCCESS -> "运行完成"
+        RunPhase.FAILED -> "运行失败"
+        RunPhase.STOPPED -> "已停止"
+    }
+
+    private fun statusMeta(snapshot: RunSnapshot): String = when (snapshot.phase) {
+        RunPhase.STARTING -> "准备中…"
+        RunPhase.RUNNING -> activeMeta(snapshot)
+        else -> finishedMeta(snapshot)
+    }
+
+    private fun activeMeta(snapshot: RunSnapshot): String =
+        "已运行 ${clockText(snapshot.startedAt, System.currentTimeMillis())} · " +
+            sourceText(snapshot.source)
+
+    private fun finishedMeta(snapshot: RunSnapshot): String {
+        val duration = ((snapshot.finishedAt ?: System.currentTimeMillis()) - snapshot.startedAt)
+            .coerceAtLeast(0)
+        val base = when (snapshot.phase) {
+            RunPhase.SUCCESS ->
+                "「${snapshot.scriptName}」· 用时 ${decimalSeconds(duration)} 秒"
+
+            RunPhase.STOPPED ->
+                "「${snapshot.scriptName}」· 用时 ${wholeSeconds(duration)} 秒"
+
+            RunPhase.FAILED -> buildString {
+                append("「${snapshot.scriptName}」· ")
+                snapshot.errorLine?.let { append("第 $it 行 ") }
+                append(snapshot.errorMessage?.takeIf { it.isNotBlank() } ?: "运行出错")
+            }
+
+            else -> ""
+        }
+        return if (snapshot.source == RunSource.SCHEDULE) "$base · 定时任务" else base
+    }
+
+    private fun sourceText(source: RunSource): String = when (source) {
+        RunSource.MANUAL -> "手动运行"
+        RunSource.SCHEDULE -> "定时任务"
+        RunSource.DUMP -> "看界面"
+    }
+
+    private fun announcementFor(snapshot: RunSnapshot): String? = when (snapshot.phase) {
+        RunPhase.STARTING -> "开始运行"
+        RunPhase.RUNNING -> null
+        RunPhase.SUCCESS -> "运行完成"
+        RunPhase.FAILED -> snapshot.errorLine
+            ?.let { "运行失败，第 $it 行" }
+            ?: "运行失败"
+
+        RunPhase.STOPPED -> "已停止"
+    }
+
+    private fun setRunStatusVisible(visible: Boolean) {
+        if (runStatusShown == visible) return
+        runStatusShown = visible
+        updateListPadding()
+        binding.runStatusCard.animate().cancel()
+        if (visible) {
+            binding.runStatusCard.alpha = 0f
+            binding.runStatusCard.isVisible = true
+            binding.runStatusCard.animate()
+                .alpha(1f)
+                .setDuration(160)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        } else {
+            binding.runStatusCard.isVisible = false
+            binding.runStatusCard.alpha = 1f
+        }
+        binding.bottomStack.post { updateListPadding() }
+    }
+
+    private fun updateListPadding() {
+        val stackHeight = binding.bottomStack.height
+        val dynamic = if (stackHeight > 0) stackHeight + dp(BOTTOM_STACK_GAP_DP) else 0
+        val listBottom = maxOf(
+            dynamic,
+            dp(if (runStatusShown) LIST_PADDING_WITH_STATUS_DP else LIST_PADDING_DP),
+        )
+        if (binding.scriptList.paddingBottom != listBottom) {
+            binding.scriptList.setPadding(
+                binding.scriptList.paddingLeft,
+                binding.scriptList.paddingTop,
+                binding.scriptList.paddingRight,
+                listBottom,
+            )
+        }
+        val tutorialBottom = maxOf(
+            dynamic,
+            dp(if (runStatusShown) TUTORIAL_PADDING_WITH_STATUS_DP else TUTORIAL_PADDING_DP),
+        )
+        if (binding.tutorialContent.root.paddingBottom != tutorialBottom) {
+            binding.tutorialContent.root.setPadding(
+                binding.tutorialContent.root.paddingLeft,
+                binding.tutorialContent.root.paddingTop,
+                binding.tutorialContent.root.paddingRight,
+                tutorialBottom,
+            )
+        }
+    }
+
+    private fun openRunLog(snapshot: RunSnapshot) {
+        val scriptId = snapshot.scriptId
+        if (scriptId == null || repository.find(scriptId) == null) {
+            Snackbar.make(binding.root, "脚本已删除", Snackbar.LENGTH_SHORT).show()
+            refresh()
+            RunState.dismiss(snapshot.startedAt)
+            return
+        }
+        startActivity(
+            Intent(this, EditorActivity::class.java)
+                .putExtra(EditorActivity.EXTRA_SCRIPT_ID, scriptId)
+                .putExtra(EditorActivity.EXTRA_OPEN_LOG, true)
+        )
+    }
+
+    private fun RunPhase.isActive(): Boolean =
+        this == RunPhase.STARTING || this == RunPhase.RUNNING
+
+    private fun RunPhase.isRestorableResult(): Boolean =
+        this == RunPhase.SUCCESS || this == RunPhase.STOPPED
+
+    private fun clockText(startedAt: Long, now: Long): String {
+        val totalSeconds = ((now - startedAt).coerceAtLeast(0)) / 1_000
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return String.format(Locale.US, "%02d:%02d", minutes, seconds)
+    }
+
+    private fun decimalSeconds(millis: Long): String =
+        String.format(Locale.US, "%.1f", millis / 1_000.0)
+
+    private fun wholeSeconds(millis: Long): Long =
+        (millis / 1_000.0).let { kotlin.math.round(it).toLong() }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 
     private fun showEnvironmentSheet() {
         environmentDialog?.dismiss()
@@ -784,6 +1065,12 @@ class MainActivity : AppCompatActivity() {
         runCatching {
             ScriptService.start(this, meta.id, meta.name, content)
         }.onFailure {
+            RunState.failStart(
+                it.message ?: "无法启动运行服务",
+                meta.id,
+                meta.name,
+                RunSource.MANUAL,
+            )
             Snackbar.make(binding.root, "启动失败：${it.message}", Snackbar.LENGTH_LONG).show()
         }
     }
@@ -1043,8 +1330,16 @@ class MainActivity : AppCompatActivity() {
         binding.searchInput.clearFocus()
     }
 
+    override fun onStop() {
+        statusHandler.removeCallbacks(statusTicker)
+        cancelStatusHide()
+        super.onStop()
+    }
+
     override fun onDestroy() {
         searchHandler.removeCallbacks(searchRefresh)
+        statusHandler.removeCallbacks(statusTicker)
+        cancelStatusHide()
         environmentDialog?.dismiss()
         accessibilityDialog?.dismiss()
         environmentDialog = null
@@ -1065,5 +1360,14 @@ class MainActivity : AppCompatActivity() {
         const val KEY_PENDING_EXPORT = "pending_export_id"
         const val KEY_FOLDER = "current_folder_id"
         const val KEY_TAB = "current_tab"
+        const val STATUS_TICK_MS = 1_000L
+        const val SUCCESS_VISIBLE_MS = 4_000L
+        const val STOPPED_VISIBLE_MS = 3_000L
+        const val RESULT_RESTORE_WINDOW_MS = 30_000L
+        const val BOTTOM_STACK_GAP_DP = 24
+        const val LIST_PADDING_DP = 104
+        const val LIST_PADDING_WITH_STATUS_DP = 176
+        const val TUTORIAL_PADDING_DP = 120
+        const val TUTORIAL_PADDING_WITH_STATUS_DP = 176
     }
 }

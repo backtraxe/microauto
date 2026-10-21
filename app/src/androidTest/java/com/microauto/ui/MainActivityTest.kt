@@ -30,6 +30,8 @@ import com.microauto.R
 import com.microauto.TestData
 import com.microauto.accessibility.AccessibilityUtils
 import com.microauto.script.BuiltinScripts
+import com.microauto.script.RunPhase
+import com.microauto.script.RunSource
 import com.microauto.script.RunState
 import com.microauto.script.ScriptRepository
 import org.hamcrest.Matchers.allOf
@@ -39,6 +41,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Assume
 import org.junit.Before
 import org.junit.Test
@@ -290,6 +293,236 @@ class MainActivityTest {
                 assertFalse(titles.any { it.startsWith("省电") })
             }
         }
+    }
+
+    @Test
+    fun runStatusShowsRunningTimerAndExpandsListPadding() {
+        val script = ScriptRepository(TestData.context()).create("状态条测试", "log(1);")
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                RunState.start(script.id, null, "状态条测试", RunSource.MANUAL)
+                RunState.markRunning()
+            }
+            awaitCondition { cardVisible(scenario) }
+
+            onView(withId(R.id.runStatusCard)).check(matches(isDisplayed()))
+            onView(withId(R.id.runStatusTitle))
+                .check(matches(withText("正在运行「状态条测试」")))
+            onView(withId(R.id.runStatusMeta))
+                .check(matches(withText(containsString("已运行 00:0"))))
+            onView(withId(R.id.runStatusAction)).check(matches(withText("停止")))
+            awaitCondition {
+                listPaddingPx(scenario) == expectedListPadding(scenario, statusVisible = true)
+            }
+            assertTrue(listPaddingPx(scenario) >= stackHeightPx(scenario))
+
+            val firstMeta = readMeta(scenario)
+            awaitCondition(2_500) { firstMeta != readMeta(scenario) }
+        }
+    }
+
+    @Test
+    fun scheduledRunMentionsScheduleSource() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                RunState.start("id", null, "定时脚本", RunSource.SCHEDULE)
+                RunState.markRunning()
+            }
+            awaitCondition { cardVisible(scenario) }
+
+            onView(withId(R.id.runStatusMeta))
+                .check(matches(withText(containsString("定时任务"))))
+            onView(withId(R.id.runStatusMeta))
+                .check(matches(withText(containsString("已运行 00:"))))
+        }
+    }
+
+    @Test
+    fun failedRunStaysUntilClosed() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                RunState.start("id", null, "失败脚本", RunSource.MANUAL)
+                RunState.markRunning()
+                RunState.recordError(3, "ReferenceError: foo is not defined")
+                RunState.complete(RunPhase.FAILED)
+            }
+            awaitCondition { cardVisible(scenario) }
+
+            onView(withId(R.id.runStatusTitle)).check(matches(withText("运行失败")))
+            onView(withId(R.id.runStatusMeta))
+                .check(matches(withText(containsString("第 3 行"))))
+            onView(withId(R.id.runStatusAction)).check(matches(withText("查看日志")))
+
+            Thread.sleep(1_000)
+            onView(withId(R.id.runStatusCard)).check(matches(isDisplayed()))
+
+            onView(withId(R.id.runStatusClose)).perform(click())
+            awaitCondition { !cardVisible(scenario) }
+            onView(withId(R.id.runStatusCard)).check(matches(not(isDisplayed())))
+        }
+    }
+
+    @Test
+    fun failedStatusSurvivesRestoreWindow() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                val now = System.currentTimeMillis()
+                RunState.failStart(
+                    message = "ReferenceError: foo is not defined",
+                    scriptId = "id",
+                    scriptName = "旧失败",
+                    source = RunSource.MANUAL,
+                    startedAt = now - 40_000,
+                    finishedAt = now - 31_000,
+                )
+            }
+            awaitCondition { cardVisible(scenario) }
+
+            onView(withId(R.id.runStatusTitle)).check(matches(withText("运行失败")))
+            onView(withId(R.id.runStatusMeta))
+                .check(matches(withText(containsString("ReferenceError"))))
+            Thread.sleep(500)
+            onView(withId(R.id.runStatusCard)).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun successStatusAutoHidesAndRestoresListPadding() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                RunState.start("id", null, "成功脚本", RunSource.MANUAL)
+                RunState.markRunning()
+                RunState.complete(RunPhase.SUCCESS)
+            }
+            awaitCondition { cardVisible(scenario) }
+
+            onView(withId(R.id.runStatusTitle)).check(matches(withText("运行完成")))
+            onView(withId(R.id.runStatusMeta))
+                .check(matches(withText(containsString("用时"))))
+
+            awaitCondition(6_000) { !cardVisible(scenario) }
+            onView(withId(R.id.runStatusCard)).check(matches(not(isDisplayed())))
+            awaitCondition {
+                listPaddingPx(scenario) == expectedListPadding(scenario, statusVisible = false)
+            }
+        }
+    }
+
+    @Test
+    fun staleSuccessAndStoppedResultsAreNotRestored() {
+        val now = System.currentTimeMillis()
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                RunState.start(
+                    scriptId = "id",
+                    scriptName = "过期成功",
+                    source = RunSource.MANUAL,
+                    startedAt = now - 40_000,
+                )
+                RunState.complete(RunPhase.SUCCESS, finishedAt = now - 31_000)
+            }
+            awaitCondition { RunState.snapshot.value == null }
+            onView(withId(R.id.runStatusCard)).check(matches(not(isDisplayed())))
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                RunState.start(
+                    scriptId = "id",
+                    scriptName = "过期停止",
+                    source = RunSource.MANUAL,
+                    startedAt = now - 40_000,
+                )
+                RunState.complete(RunPhase.STOPPED, finishedAt = now - 31_000)
+            }
+            awaitCondition { RunState.snapshot.value == null }
+            onView(withId(R.id.runStatusCard)).check(matches(not(isDisplayed())))
+        }
+    }
+
+    @Test
+    fun dumpRunNeverShowsHomeStatusBar() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                RunState.start(null, null, "看界面", RunSource.DUMP)
+                RunState.markRunning()
+            }
+            awaitCondition { RunState.snapshot.value?.phase == RunPhase.RUNNING }
+            onView(withId(R.id.runStatusCard)).check(matches(not(isDisplayed())))
+        }
+    }
+
+    @Test
+    fun statusRestoresAfterRecreateWhileRunning() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                RunState.start("id", null, "旋转脚本", RunSource.MANUAL)
+                RunState.markRunning()
+            }
+            awaitCondition { cardVisible(scenario) }
+            scenario.recreate()
+            awaitCondition { cardVisible(scenario) }
+
+            onView(withId(R.id.runStatusCard)).check(matches(isDisplayed()))
+            onView(withId(R.id.runStatusTitle))
+                .check(matches(withText("正在运行「旋转脚本」")))
+        }
+    }
+
+    private fun readMeta(scenario: ActivityScenario<MainActivity>): String {
+        var meta = ""
+        scenario.onActivity { activity ->
+            meta = activity.findViewById<TextView>(R.id.runStatusMeta).text.toString()
+        }
+        return meta
+    }
+
+    private fun cardVisible(scenario: ActivityScenario<MainActivity>): Boolean {
+        var visible = false
+        scenario.onActivity { activity ->
+            visible = activity.findViewById<View>(R.id.runStatusCard).isShown
+        }
+        return visible
+    }
+
+    private fun listPaddingPx(scenario: ActivityScenario<MainActivity>): Int {
+        var padding = 0
+        scenario.onActivity { activity ->
+            padding = activity.findViewById<RecyclerView>(R.id.scriptList).paddingBottom
+        }
+        return padding
+    }
+
+    private fun stackHeightPx(scenario: ActivityScenario<MainActivity>): Int {
+        var height = 0
+        scenario.onActivity { activity ->
+            height = activity.findViewById<View>(R.id.bottomStack).height
+        }
+        return height
+    }
+
+    private fun expectedListPadding(
+        scenario: ActivityScenario<MainActivity>,
+        statusVisible: Boolean,
+    ): Int {
+        var padding = 0
+        scenario.onActivity { activity ->
+            val density = activity.resources.displayMetrics.density
+            val stackHeight = activity.findViewById<View>(R.id.bottomStack).height
+            val floor = ((if (statusVisible) 176 else 104) * density).toInt()
+            val gap = (24 * density).toInt()
+            padding = maxOf(floor, stackHeight + gap)
+        }
+        return padding
+    }
+
+    private fun awaitCondition(timeoutMs: Long = 3_000, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (condition()) return
+            Thread.sleep(50)
+        }
+        fail("条件未在 ${timeoutMs}ms 内满足")
     }
 
     private fun findHolder(

@@ -1,13 +1,14 @@
 package com.microauto.script
 
+import java.util.concurrent.atomic.AtomicLong
+
 class RunTokenRegistry {
     data class Token(val id: Long, val startId: Int)
 
-    private var nextId = 0L
     private var current: Token? = null
 
     fun begin(startId: Int): Token {
-        val token = Token(++nextId, startId)
+        val token = Token(NEXT_ID.incrementAndGet(), startId)
         current = token
         return token
     }
@@ -26,5 +27,9 @@ class RunTokenRegistry {
         val token = current
         current = null
         return token
+    }
+
+    private companion object {
+        val NEXT_ID = AtomicLong(0L)
     }
 }

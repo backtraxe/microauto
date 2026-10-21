@@ -29,18 +29,26 @@ class ScriptService : Service() {
         const val EXTRA_SCRIPT = "script"
         const val EXTRA_SCRIPT_ID = "script_id"
         const val EXTRA_SCRIPT_NAME = "script_name"
+        const val EXTRA_RUN_SOURCE = "run_source"
         const val EXTRA_RUN_TOKEN = "run_token"
 
         private const val NOTIFICATION_ID = 1001
         private const val NO_TOKEN = Long.MIN_VALUE
 
-        fun start(context: Context, scriptId: String?, scriptName: String, script: String) {
+        fun start(
+            context: Context,
+            scriptId: String?,
+            scriptName: String,
+            script: String,
+            source: RunSource = RunSource.MANUAL,
+        ) {
             ScriptLimits.scriptError(script)?.let { throw IllegalArgumentException(it) }
             val intent = Intent(context, ScriptService::class.java).apply {
                 action = ACTION_RUN
                 putExtra(EXTRA_SCRIPT, script)
                 putExtra(EXTRA_SCRIPT_ID, scriptId)
                 putExtra(EXTRA_SCRIPT_NAME, scriptName)
+                putExtra(EXTRA_RUN_SOURCE, source.name)
             }
             ContextCompat.startForegroundService(context, intent)
         }
@@ -56,9 +64,10 @@ class ScriptService : Service() {
         val owner: RunTokenRegistry.Token,
         val scriptId: String?,
         val scriptName: String,
+        val source: RunSource,
         var job: Job? = null,
         var wakeLock: PowerManager.WakeLock? = null,
-        var stoppedByUser: Boolean = false
+        var stoppedByUser: Boolean = false,
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -96,8 +105,10 @@ class ScriptService : Service() {
             stopSelf(startId)
             return
         }
+        val scriptId = intent.getStringExtra(EXTRA_SCRIPT_ID)
+        val scriptName = intent.getStringExtra(EXTRA_SCRIPT_NAME) ?: "脚本"
         if (currentRun != null) {
-            RunLog.append("[跳过] 已有脚本在运行")
+            RunNotifications.notifyBusy(this, scriptName, "已有脚本在运行")
             // Do not stopSelf(startId) synchronously: that would stop the active
             // session. If the active session ends first, finishRun() consumes the
             // newest startId; this posted check is only a safety net.
@@ -107,28 +118,35 @@ class ScriptService : Service() {
             return
         }
         if (ScriptRunner.isRunning()) {
-            RunLog.append("[跳过] 正在收尾，请稍后")
+            RunNotifications.notifyBusy(this, scriptName, "正在收尾，请稍后")
             stopSelf(startId)
             return
         }
 
-        val scriptId = intent.getStringExtra(EXTRA_SCRIPT_ID)
-        val scriptName = intent.getStringExtra(EXTRA_SCRIPT_NAME) ?: "脚本"
-        val session = RunSession(tokens.begin(startId), scriptId, scriptName)
+        val source = intent.getStringExtra(EXTRA_RUN_SOURCE)
+            ?.let { name -> runCatching { RunSource.valueOf(name) }.getOrNull() }
+            ?: RunSource.MANUAL
+        val session = RunSession(tokens.begin(startId), scriptId, scriptName, source)
         currentRun = session
-        RunState.start(scriptId, session.owner.id)
+        val startedAt = System.currentTimeMillis()
+        RunState.start(scriptId, session.owner.id, scriptName, source, startedAt)
+        RunLog.clear()
+        RunLog.begin(scriptId, scriptName, source, startedAt)
 
         try {
             startForegroundCompat("正在运行：$scriptName", session.owner.id)
-            RunLog.clear()
             session.wakeLock = acquireWakeLock()
         } catch (throwable: Throwable) {
             currentRun = null
             tokens.finish(session.owner)
             releaseWakeLock(session)
-            RunState.finish()
+            val message = "启动运行服务失败：${throwable.message}"
+            RunState.recordError(null, message, startedAt)
+            RunState.complete(RunPhase.FAILED)
+            RunLog.recordError(null, message, startedAt)
+            RunLog.complete(RunPhase.FAILED)
             stopForeground(STOP_FOREGROUND_REMOVE)
-            RunLog.append("[错误] 启动运行服务失败：${throwable.message}")
+            RunLog.append("[错误] $message")
             stopSelf(latestStartId)
             return
         }
@@ -148,10 +166,22 @@ class ScriptService : Service() {
         if (session.owner != owner || !tokens.finish(owner)) return
         currentRun = null
         releaseWakeLock(session)
-        RunState.finish()
+        val phase = when {
+            session.stoppedByUser -> RunPhase.STOPPED
+            success -> RunPhase.SUCCESS
+            else -> RunPhase.FAILED
+        }
+        RunState.complete(phase)
+        RunLog.complete(phase)
         stopForeground(STOP_FOREGROUND_REMOVE)
         if (!session.stoppedByUser) {
-            RunNotifications.notifyResult(this, session.scriptName, success)
+            RunNotifications.notifyResult(
+                context = this,
+                scriptName = session.scriptName,
+                success = success,
+                scriptId = session.scriptId,
+                errorMessage = RunLog.meta.value?.errorMessage,
+            )
         }
         stopSelf(latestStartId)
     }
@@ -233,10 +263,11 @@ class ScriptService : Service() {
             session.job?.cancel()
             ScriptRunner.cancel()
             releaseWakeLock(session)
+            RunState.stop()
+            RunLog.complete(RunPhase.STOPPED)
         }
         currentRun = null
         tokens.clear()
-        RunState.finish()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }

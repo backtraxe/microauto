@@ -55,8 +55,22 @@
     <string name="editor_tab_log">日志</string>
     <string name="editor_tab_api">API</string>
     <string name="schedule_title">每天定时</string>
-    <string name="run_log_title">运行日志（最近一次）</string>
+    <string name="run_log_title">运行日志</string>
     <string name="run_log_empty">运行脚本后，日志会显示在这里</string>
+    <string name="run_log_legacy_title">上次运行日志</string>
+    <string name="run_log_unknown_source">来源未知</string>
+    <string name="run_log_foreign_format">这是「%1$s」的运行日志，不是当前脚本</string>
+    <string name="run_log_copy">复制</string>
+    <string name="run_log_clear">清空</string>
+    <string name="run_log_back_to_bottom">回到底部</string>
+    <string name="run_log_run_current">运行当前脚本</string>
+    <string name="run_log_clear_title">清空日志？</string>
+    <string name="run_log_clear_message">清空后无法恢复，确定继续？</string>
+    <string name="run_log_chip_success">成功</string>
+    <string name="run_log_chip_failed">失败</string>
+    <string name="run_log_chip_running">运行中</string>
+    <string name="run_log_chip_starting">启动中</string>
+    <string name="run_log_chip_stopped">已停止</string>
 
     <string name="search_scripts_hint">搜索脚本</string>
     <string name="empty_no_scripts">还没有脚本</string>
@@ -72,6 +86,11 @@
     <string name="content_desc_folder_actions">文件夹操作</string>
     <string name="content_desc_more_actions">更多操作</string>
     <string name="content_desc_version_actions">版本操作</string>
+    <string name="content_desc_close_run_status">关闭运行状态</string>
+    <string name="content_desc_log_copy">复制运行日志</string>
+    <string name="content_desc_log_clear">清空运行日志</string>
+    <string name="content_desc_log_run_current">保存并运行当前脚本</string>
+    <string name="content_desc_log_back_to_bottom">回到底部</string>
     <string name="folder_script_count">%1$d 个脚本</string>
     <string name="version_count">共 %1$d 个版本</string>
     <string name="version_label">v%1$d</string>

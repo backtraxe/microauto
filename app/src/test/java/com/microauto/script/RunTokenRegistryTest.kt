@@ -71,7 +71,15 @@ class RunTokenRegistryTest {
         val token = registry.begin(startId = 42)
 
         assertEquals(42, token.startId)
-        assertEquals(1L, token.id)
+        assertTrue(token.id > 0)
+    }
+
+    @Test
+    fun tokenIdsDoNotCollideAcrossRegistryInstances() {
+        val first = RunTokenRegistry().begin(startId = 1)
+        val second = RunTokenRegistry().begin(startId = 2)
+
+        assertNotEquals(first.id, second.id)
     }
 
     @Test
