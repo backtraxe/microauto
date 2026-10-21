@@ -25,8 +25,22 @@
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/editorTabs"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:tabMode="fixed">
+            android:layout_height="48dp"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp"
+            android:background="@drawable/bg_tab_track"
+            android:padding="3dp"
+            app:tabBackground="@drawable/bg_editor_tab"
+            app:tabGravity="fill"
+            app:tabIndicatorHeight="0dp"
+            app:tabMode="fixed"
+            app:tabPaddingBottom="3dp"
+            app:tabPaddingEnd="3dp"
+            app:tabPaddingStart="3dp"
+            app:tabPaddingTop="3dp"
+            app:tabSelectedTextColor="@color/nd_tab_text"
+            app:tabTextColor="?attr/colorOnSurfaceVariant">
 
             <com.google.android.material.tabs.TabItem
                 android:layout_width="wrap_content"
@@ -83,11 +97,6 @@
                         android:paddingEnd="8dp"
                         android:paddingBottom="4dp" />
                 </HorizontalScrollView>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="?attr/colorOutlineVariant" />
             </LinearLayout>
 
             <androidx.core.widget.NestedScrollView
@@ -101,71 +110,198 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="12dp">
+                    android:paddingStart="12dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="12dp">
 
                     <com.google.android.material.card.MaterialCardView
-                        style="@style/Widget.MicroAuto.Card.High"
+                        android:id="@+id/editorLastRun"
+                        style="@style/Widget.MicroAuto.Card"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:visibility="gone"
+                        app:cardBackgroundColor="@color/nd_green_soft"
+                        app:strokeWidth="0dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal">
+                            android:gravity="center_vertical"
+                            android:minHeight="44dp"
+                            android:orientation="horizontal"
+                            android:paddingStart="12dp"
+                            android:paddingTop="2dp"
+                            android:paddingEnd="2dp"
+                            android:paddingBottom="2dp">
 
-                            <TextView
-                                android:id="@+id/lineNumbers"
-                                android:layout_width="48dp"
-                                android:layout_height="wrap_content"
-                                android:fontFamily="@font/jetbrains_mono_regular"
-                                android:gravity="top|end"
+                            <ImageView
+                                android:id="@+id/lastRunIcon"
+                                android:layout_width="18dp"
+                                android:layout_height="18dp"
                                 android:importantForAccessibility="no"
-                                android:includeFontPadding="false"
-                                android:lineSpacingExtra="2dp"
-                                android:minLines="20"
-                                android:paddingStart="8dp"
-                                android:paddingTop="12dp"
-                                android:paddingEnd="8dp"
-                                android:paddingBottom="12dp"
-                                android:textColor="?attr/colorOnSurfaceVariant"
-                                android:textSize="13sp" />
+                                android:src="@drawable/ic_check"
+                                app:tint="@color/nd_green" />
 
-                            <View
-                                android:layout_width="1dp"
-                                android:layout_height="match_parent"
-                                android:background="?attr/colorOutlineVariant" />
-
-                            <HorizontalScrollView
+                            <LinearLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
+                                android:layout_marginStart="10dp"
                                 android:layout_weight="1"
-                                android:fillViewport="true"
-                                android:scrollbars="none">
+                                android:orientation="vertical">
 
-                                <EditText
-                                    android:id="@+id/scriptEditor"
+                                <TextView
+                                    android:id="@+id/lastRunTitle"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:text="@string/editor_last_run_success"
+                                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                                    android:textColor="@color/nd_green" />
+
+                                <TextView
+                                    android:id="@+id/lastRunMeta"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="1dp"
+                                    android:ellipsize="end"
+                                    android:maxLines="1"
+                                    android:textAppearance="?attr/textAppearanceBodySmall"
+                                    android:textColor="@color/nd_green" />
+                            </LinearLayout>
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnLastRunLog"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="48dp"
+                                android:contentDescription="@string/content_desc_last_run_log"
+                                android:minHeight="48dp"
+                                android:text="@string/editor_last_run_log"
+                                android:textColor="@color/nd_green" />
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <com.google.android.material.card.MaterialCardView
+                        style="@style/Widget.MicroAuto.Card.Code"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        tools:ignore="TooDeepLayout">
+
+                        <RelativeLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+
+                            <LinearLayout
+                                android:id="@+id/codeHeader"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_alignParentTop="true"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:paddingStart="14dp"
+                                android:paddingTop="10dp"
+                                android:paddingEnd="14dp"
+                                android:paddingBottom="9dp">
+
+                                <View
+                                    android:layout_width="6dp"
+                                    android:layout_height="6dp"
+                                    android:background="@drawable/bg_code_dot"
+                                    android:importantForAccessibility="no" />
+
+                                <TextView
+                                    android:id="@+id/codeFileLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="8dp"
+                                    android:layout_weight="1"
+                                    android:ellipsize="middle"
+                                    android:fontFamily="@font/jetbrains_mono_regular"
+                                    android:maxLines="1"
+                                    android:textAppearance="?attr/textAppearanceBodySmall"
+                                    android:textColor="?attr/colorOnSurface" />
+
+                                <TextView
+                                    android:id="@+id/codeMetaLabel"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:background="@android:color/transparent"
+                                    android:layout_marginStart="8dp"
+                                    android:maxLines="1"
+                                    android:textAppearance="?attr/textAppearanceBodySmall"
+                                    android:textColor="?attr/colorOnSurfaceVariant" />
+                            </LinearLayout>
+
+                            <View
+                                android:id="@+id/codeHeaderDivider"
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"
+                                android:layout_below="@id/codeHeader"
+                                android:background="?attr/colorOutlineVariant" />
+
+                            <LinearLayout
+                                android:id="@+id/codeEditorRow"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_below="@id/codeHeaderDivider"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    android:id="@+id/lineNumbers"
+                                    android:layout_width="48dp"
+                                    android:layout_height="wrap_content"
                                     android:fontFamily="@font/jetbrains_mono_regular"
-                                    android:fontFeatureSettings="'liga' 0, 'calt' 0"
-                                    android:gravity="top|start"
-                                    android:hint="@string/editor_hint"
-                                    android:importantForAutofill="no"
+                                    android:gravity="top|end"
+                                    android:importantForAccessibility="no"
                                     android:includeFontPadding="false"
-                                    android:inputType="textMultiLine|textNoSuggestions"
                                     android:lineSpacingExtra="2dp"
                                     android:minLines="20"
-                                    android:paddingStart="12dp"
+                                    android:paddingStart="8dp"
                                     android:paddingTop="12dp"
-                                    android:paddingEnd="12dp"
+                                    android:paddingEnd="8dp"
                                     android:paddingBottom="12dp"
-                                    android:scrollHorizontally="true"
-                                    android:textColor="?attr/colorOnSurface"
-                                    android:textColorHint="?attr/colorOnSurfaceVariant"
+                                    android:textColor="?attr/colorOnSurfaceVariant"
                                     android:textSize="13sp" />
-                            </HorizontalScrollView>
-                        </LinearLayout>
+
+                                <View
+                                    android:layout_width="1dp"
+                                    android:layout_height="match_parent"
+                                    android:background="?attr/colorOutlineVariant" />
+
+                                <HorizontalScrollView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:fillViewport="true"
+                                    android:scrollbars="none">
+
+                                    <EditText
+                                        android:id="@+id/scriptEditor"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:background="@android:color/transparent"
+                                        android:fontFamily="@font/jetbrains_mono_regular"
+                                        android:fontFeatureSettings="'liga' 0, 'calt' 0"
+                                        android:gravity="top|start"
+                                        android:hint="@string/editor_hint"
+                                        android:importantForAutofill="no"
+                                        android:includeFontPadding="false"
+                                        android:inputType="textMultiLine|textNoSuggestions"
+                                        android:lineSpacingExtra="2dp"
+                                        android:minLines="20"
+                                        android:paddingStart="12dp"
+                                        android:paddingTop="12dp"
+                                        android:paddingEnd="12dp"
+                                        android:paddingBottom="12dp"
+                                        android:scrollHorizontally="true"
+                                        android:textColor="?attr/colorOnSurface"
+                                        android:textColorHint="?attr/colorOnSurfaceVariant"
+                                        android:textSize="13sp" />
+                                </HorizontalScrollView>
+                            </LinearLayout>
+                        </RelativeLayout>
                     </com.google.android.material.card.MaterialCardView>
                 </LinearLayout>
             </androidx.core.widget.NestedScrollView>
@@ -318,7 +454,8 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:textAppearance="?attr/textAppearanceBodySmall" />
+                                android:textAppearance="?attr/textAppearanceBodySmall"
+                                android:textColor="?attr/colorError" />
 
                             <com.google.android.material.button.MaterialButton
                                 android:id="@+id/btnJumpToLine"
@@ -415,10 +552,12 @@
                 android:layout_marginTop="8dp"
                 android:layout_marginEnd="12dp"
                 android:hint="@string/api_search_hint"
-                app:boxCornerRadiusBottomEnd="8dp"
-                app:boxCornerRadiusBottomStart="8dp"
-                app:boxCornerRadiusTopEnd="8dp"
-                app:boxCornerRadiusTopStart="8dp"
+                app:boxBackgroundColor="?attr/colorSurfaceContainer"
+                app:boxCornerRadiusBottomEnd="13dp"
+                app:boxCornerRadiusBottomStart="13dp"
+                app:boxCornerRadiusTopEnd="13dp"
+                app:boxCornerRadiusTopStart="13dp"
+                app:boxStrokeColor="@color/input_stroke"
                 app:endIconContentDescription="@string/api_clear_search"
                 app:endIconMode="clear_text"
                 app:startIconDrawable="@drawable/ic_search"
@@ -516,69 +655,70 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
+            android:paddingStart="16dp"
             android:paddingTop="8dp"
-            android:paddingEnd="12dp"
+            android:paddingEnd="16dp"
             android:paddingBottom="12dp">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnRun"
+                style="@style/Widget.MicroAuto.Button.Run"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="48dp"
                 android:layout_weight="1"
-                android:minHeight="48dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="@string/action_run" />
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="@string/action_run_script"
+                app:icon="@drawable/ic_play_arrow"
+                app:iconGravity="textStart"
+                app:iconSize="20dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnStop"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                style="@style/Widget.MicroAuto.Button.IconTile"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:minHeight="48dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="@string/action_stop" />
+                android:contentDescription="@string/action_stop"
+                app:icon="@drawable/ic_stop"
+                app:iconSize="20dp"
+                app:iconTint="?attr/colorPrimary" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnDump"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                style="@style/Widget.MicroAuto.Button.IconTile"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:minHeight="48dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="@string/action_dump" />
+                android:contentDescription="@string/action_dump"
+                app:icon="@drawable/ic_visibility"
+                app:iconSize="20dp"
+                app:iconTint="?attr/colorPrimary" />
 
             <FrameLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1">
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnSchedule"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    style="@style/Widget.MicroAuto.Button.IconTile"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:minHeight="48dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="@string/action_schedule" />
+                    android:layout_height="match_parent"
+                    android:contentDescription="@string/action_schedule"
+                    app:icon="@drawable/ic_clock"
+                    app:iconSize="20dp"
+                    app:iconTint="?attr/colorPrimary" />
 
                 <View
                     android:id="@+id/scheduleDot"
                     android:layout_width="8dp"
                     android:layout_height="8dp"
                     android:layout_gravity="top|end"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginEnd="8dp"
+                    android:layout_marginTop="7dp"
+                    android:layout_marginEnd="7dp"
                     android:background="@drawable/bg_schedule_dot"
                     android:importantForAccessibility="no"
                     android:visibility="gone" />

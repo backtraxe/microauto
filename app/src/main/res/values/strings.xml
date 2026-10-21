@@ -4,6 +4,7 @@
     <string name="accessibility_service_description">用于执行用户脚本的界面自动化服务。开启后可查找控件、点击、滑动和启动应用。</string>
 
     <string name="action_run">运行</string>
+    <string name="action_run_script">运行脚本</string>
     <string name="action_stop">停止</string>
     <string name="action_dump">看界面</string>
     <string name="action_save">保存</string>
@@ -51,6 +52,13 @@
     <string name="tab_tutorial">教程</string>
 
     <string name="editor_hint">在这里编写 JavaScript</string>
+    <string name="editor_code_meta">JavaScript · %1$d 行</string>
+    <string name="editor_last_run_success">上次运行成功</string>
+    <string name="editor_last_run_failed">上次运行失败</string>
+    <string name="editor_last_run_stopped">已停止</string>
+    <string name="editor_last_run_running">正在运行</string>
+    <string name="editor_last_run_log">查看日志</string>
+    <string name="content_desc_last_run_log">查看上次运行日志</string>
     <string name="editor_tab_code">编辑</string>
     <string name="editor_tab_log">日志</string>
     <string name="editor_tab_api">API</string>
@@ -73,6 +81,22 @@
     <string name="run_log_chip_stopped">已停止</string>
 
     <string name="search_scripts_hint">搜索脚本</string>
+    <string name="home_section_title">我的自动化</string>
+    <string name="home_avatar_initial">M</string>    <string name="home_script_count">%1$d 个脚本</string>
+    <string name="home_summary_schedule_count">%1$d 个定时</string>
+    <string name="home_summary_zero_schedule">0 个定时</string>
+    <string name="home_summary_no_schedule">暂无定时</string>
+    <string name="home_summary_next_schedule">下一个 %1$s</string>
+    <string name="home_summary_running_count">1 个运行中</string>
+    <string name="home_summary_idle">空闲</string>
+    <string name="home_summary_elapsed">已运行 %1$s</string>
+    <string name="home_summary_no_run">没有脚本在运行</string>
+    <string name="home_summary_last_success">上次成功 · %1$s</string>
+    <string name="home_summary_last_failed">上次失败 · %1$s</string>
+    <string name="home_summary_last_stopped">上次已停止 · %1$s</string>
+    <string name="script_chip_manual">手动</string>
+    <string name="script_chip_schedule">每天 %1$s</string>
+    <string name="script_chip_running">运行中</string>
     <string name="empty_no_scripts">还没有脚本</string>
     <string name="empty_no_scripts_hint">新建一个脚本，或从文件导入 .js / .txt</string>
 
@@ -108,6 +132,7 @@
     <string name="content_desc_more_actions">更多操作</string>
     <string name="content_desc_version_actions">版本操作</string>
     <string name="content_desc_close_run_status">关闭运行状态</string>
+    <string name="content_desc_clear_search">清空搜索</string>
     <string name="content_desc_log_copy">复制运行日志</string>
     <string name="content_desc_log_clear">清空运行日志</string>
     <string name="content_desc_log_run_current">保存并运行当前脚本</string>

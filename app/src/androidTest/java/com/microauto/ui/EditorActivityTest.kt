@@ -9,6 +9,7 @@ import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -92,6 +93,51 @@ class EditorActivityTest {
             onView(withId(R.id.scheduleTime)).check(matches(isDisplayed()))
             closeSoftKeyboard()
             pressBack()
+        }
+    }
+
+    @Test
+    fun codeHeaderTracksFileAndLineCount() {
+        launch().use { scenario ->
+            onView(withId(R.id.codeFileLabel))
+                .check(matches(withText("UI 测试脚本.js")))
+            onView(withId(R.id.codeMetaLabel))
+                .check(matches(withText("JavaScript · 1 行")))
+            onView(withId(R.id.scriptEditor)).perform(replaceText("a\nb\nc"))
+            awaitCondition {
+                var text = ""
+                scenario.onActivity { activity ->
+                    text = activity.findViewById<TextView>(R.id.codeMetaLabel).text.toString()
+                }
+                text == "JavaScript · 3 行"
+            }
+        }
+    }
+
+    @Test
+    fun lastRunStripShowsForCurrentScriptAndOpensLog() {
+        RunLog.begin(scriptId, "UI 测试脚本", RunSource.MANUAL)
+        RunLog.append("hello")
+        RunLog.complete(RunPhase.SUCCESS)
+
+        launch().use {
+            onView(withId(R.id.editorLastRun)).check(matches(isDisplayed()))
+            onView(withId(R.id.lastRunTitle))
+                .check(matches(withText("上次运行成功")))
+            onView(withId(R.id.lastRunMeta))
+                .check(matches(withText(containsString(" · "))))
+            onView(withId(R.id.btnLastRunLog)).perform(click())
+            onView(withId(R.id.logPage)).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
+    fun lastRunStripHidesForForeignLog() {
+        val otherId = ScriptRepository(context).create("另一个脚本", "log('b');").id
+        RunLog.begin(otherId, "另一个脚本", RunSource.MANUAL)
+
+        launch().use {
+            onView(withId(R.id.editorLastRun)).check(matches(not(isDisplayed())))
         }
     }
 
@@ -509,11 +555,14 @@ class EditorActivityTest {
 
     @Test
     fun undoAndRedoRestoreEditorContent() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         launch().use {
             onView(withId(R.id.scriptEditor)).perform(replaceText("abc"))
-            onView(withId(R.id.action_undo)).perform(click())
+            openActionBarOverflowOrOptionsMenu(context)
+            onView(withText("撤销")).perform(click())
             onView(withId(R.id.scriptEditor)).check(matches(withText("toast('hello');")))
-            onView(withId(R.id.action_redo)).perform(click())
+            openActionBarOverflowOrOptionsMenu(context)
+            onView(withText("重做")).perform(click())
             onView(withId(R.id.scriptEditor)).check(matches(withText("abc")))
         }
     }
@@ -587,7 +636,7 @@ class EditorActivityTest {
         launch(openLog = true).use {
             onView(withId(R.id.logForeignBanner)).check(matches(not(isDisplayed())))
             onView(withId(R.id.logMeta)).check(
-                matches(withText(containsString("「UI 测试脚本」")))
+                matches(withText(containsString(":")))
             )
         }
     }

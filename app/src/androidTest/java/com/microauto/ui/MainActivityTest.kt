@@ -30,6 +30,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.microauto.R
 import com.microauto.TestData
 import com.microauto.accessibility.AccessibilityUtils
+import com.microauto.schedule.SchedulePrefs
 import com.microauto.script.BuiltinScripts
 import com.microauto.script.RunPhase
 import com.microauto.script.RunSource
@@ -65,13 +66,66 @@ class MainActivityTest {
     fun showsToolbarAndNav() {
         ActivityScenario.launch(MainActivity::class.java).use {
             onView(withId(R.id.toolbar)).check(matches(isDisplayed()))
-            onView(allOf(withText("脚本"), isDescendantOfA(withId(R.id.toolbar))))
+            onView(allOf(withText("自动化"), isDescendantOfA(withId(R.id.toolbar))))
                 .check(matches(isDisplayed()))
             onView(withId(R.id.bottomNav)).check(matches(isDisplayed()))
             openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
             onView(withText(containsString("运行环境"))).check(matches(isDisplayed()))
             pressBack()
         }
+    }
+
+    @Test
+    fun homeSummaryReflectsScheduleAndRunState() {
+        val script = ScriptRepository(TestData.context()).create("摘要脚本", "log(1);")
+        SchedulePrefs.save(TestData.context(), script.id, true, 8, 30)
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            onView(withId(R.id.homeDate)).check(matches(withText(containsString("月"))))
+            onView(withId(R.id.homeGreeting)).check(matches(withText(containsString("好"))))
+            onView(withId(R.id.homeAvatar)).check(matches(isDisplayed()))
+            onView(withId(R.id.summaryScheduleTitle)).check(matches(withText("1 个定时")))
+            onView(withId(R.id.summaryScheduleHint))
+                .check(matches(withText(containsString("下一个 08:30"))))
+            onView(withId(R.id.summaryRunningTitle)).check(matches(withText("空闲")))
+            onView(withId(R.id.scriptCountText)).check(matches(withText(containsString("个脚本"))))
+
+            scenario.onActivity {
+                RunState.start(script.id, null, "摘要脚本", RunSource.MANUAL)
+                RunState.markRunning()
+            }
+            awaitCondition {
+                textOf(scenario, R.id.summaryRunningTitle) == "1 个运行中"
+            }
+            onView(withId(R.id.summaryRunningHint))
+                .check(matches(withText(containsString("已运行 00:"))))
+        }
+    }
+
+    @Test
+    fun scriptRowsShowIconTileAndChips() {
+        ScriptRepository(TestData.context()).create("卡片脚本", "log(1);")
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val list = activity.findViewById<RecyclerView>(R.id.scriptList)
+                val holder = findHolder(list, "卡片脚本") ?: error("脚本行未显示")
+                val tile = holder.itemView.findViewById<TextView>(R.id.iconTile)
+                val scheduleChip = holder.itemView.findViewById<TextView>(R.id.scheduleChip)
+                val statusChip = holder.itemView.findViewById<TextView>(R.id.statusChip)
+                assertEquals("卡", tile.text.toString())
+                assertEquals("手动", scheduleChip.text.toString())
+                assertTrue(statusChip.text.toString().contains("月"))
+            }
+        }
+    }
+
+    private fun textOf(scenario: ActivityScenario<MainActivity>, id: Int): String {
+        var text = ""
+        scenario.onActivity { activity ->
+            text = activity.findViewById<TextView>(id).text.toString()
+        }
+        return text
     }
 
     @Test
@@ -87,7 +141,7 @@ class MainActivityTest {
     @Test
     fun centerActionOpensEditor() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            onView(allOf(withText("新建"), isDisplayed())).perform(click())
+            onView(withId(R.id.navCreateFab)).check(matches(isDisplayed())).perform(click())
             onView(allOf(withText("新建脚本"), isDisplayed())).perform(click())
             Thread.sleep(1500)
             onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
@@ -98,7 +152,7 @@ class MainActivityTest {
     @Test
     fun centerActionCreatesFolder() {
         ActivityScenario.launch(MainActivity::class.java).use {
-            onView(allOf(withText("新建"), isDisplayed())).perform(click())
+            onView(withId(R.id.navCreateFab)).check(matches(isDisplayed())).perform(click())
             onView(allOf(withText("新建文件夹"), isDisplayed())).perform(click())
             onView(withId(R.id.renameInput)).perform(replaceText("Nav Folder"))
             onView(withText("确定")).perform(click())
@@ -310,7 +364,7 @@ class MainActivityTest {
             onView(withId(R.id.runStatusTitle))
                 .check(matches(withText("正在运行「状态条测试」")))
             onView(withId(R.id.runStatusMeta))
-                .check(matches(withText(containsString("已运行 00:0"))))
+                .check(matches(withText(containsString("已运行"))))
             onView(withId(R.id.runStatusAction)).check(matches(withText("停止")))
             awaitCondition {
                 listPaddingPx(scenario) == expectedListPadding(scenario, statusVisible = true)

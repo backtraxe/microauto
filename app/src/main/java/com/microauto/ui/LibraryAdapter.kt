@@ -1,11 +1,16 @@
 package com.microauto.ui
 
+import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.color.MaterialColors
+import com.microauto.R
+import com.microauto.core.DateFormats
 import com.microauto.databinding.ItemFolderBinding
 import com.microauto.databinding.ItemScriptBinding
 import com.microauto.script.FolderMeta
@@ -22,7 +27,6 @@ class LibraryAdapter(
     private val onScriptClick: (ScriptMeta) -> Unit,
     private val onScriptMenu: (ScriptMeta, View) -> Unit,
     private val onScriptRun: (ScriptMeta) -> Unit,
-    private val subtitle: (ScriptMeta) -> String,
     private val schedule: (ScriptMeta) -> String?
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
@@ -96,14 +100,59 @@ class LibraryAdapter(
         private val binding: ItemScriptBinding
     ) : RecyclerView.ViewHolder(binding.root) {
         fun bind(meta: ScriptMeta) {
+            val context = binding.root.context
             binding.nameText.text = meta.name
+            val tileName = meta.name.trim().replaceFirst(Regex("^示例[：:]\\s*"), "")
+            binding.iconTile.text = tileName.take(1).ifEmpty { "?" }
+            binding.iconTile.backgroundTintList = ColorStateList.valueOf(
+                ContextCompat.getColor(context, R.color.nd_indigo_soft)
+            )
+            binding.iconTile.setTextColor(ContextCompat.getColor(context, R.color.nd_indigo_text))
+
             val scheduleText = schedule(meta)
-            binding.metaText.text = if (scheduleText != null) {
-                "$scheduleText · ${subtitle(meta)}"
-            } else {
-                subtitle(meta)
-            }
+            binding.scheduleChip.text = scheduleText
+                ?: context.getString(R.string.script_chip_manual)
+            binding.scheduleChip.backgroundTintList = ColorStateList.valueOf(
+                ContextCompat.getColor(context, R.color.nd_indigo_soft)
+            )
+            binding.scheduleChip.setTextColor(
+                ContextCompat.getColor(context, R.color.nd_indigo_text)
+            )
+
             val isThisRunning = running && runningScriptId == meta.id
+            binding.statusChip.text = if (isThisRunning) {
+                context.getString(R.string.script_chip_running)
+            } else {
+                DateFormats.formatMonthDay(meta.updatedAt)
+            }
+            val statusBackground = if (isThisRunning) {
+                R.color.nd_green_soft
+            } else {
+                null
+            }
+            val statusForeground = if (isThisRunning) {
+                R.color.nd_green
+            } else {
+                null
+            }
+            binding.statusChip.backgroundTintList = ColorStateList.valueOf(
+                if (statusBackground != null) {
+                    ContextCompat.getColor(context, statusBackground)
+                } else {
+                    MaterialColors.getColor(
+                        binding.statusChip,
+                        com.google.android.material.R.attr.colorSurfaceVariant,
+                    )
+                }
+            )
+            binding.statusChip.setTextColor(
+                if (statusForeground != null) {
+                    ContextCompat.getColor(context, statusForeground)
+                } else {
+                    ContextCompat.getColor(context, R.color.nd_chip_text)
+                }
+            )
+
             binding.btnRunScript.isVisible = !isThisRunning
             binding.btnRunScript.isEnabled = !running
             binding.btnRunScript.contentDescription = when {

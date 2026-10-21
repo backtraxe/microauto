@@ -1,0 +1,1855 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MicroAuto · 八套 UI 方向</title>
+<style>
+  :root{
+    --page:#F2F0EA;
+    --ink:#171614;
+    --muted:#6E6A60;
+    --line:#D8D3C7;
+    --accent:#C2410C;
+    --card:#FBF9F4;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,"SFMono-Regular","JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 12% -8%,rgba(255,255,255,.7),transparent 60%),
+      var(--page);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:#171614;color:#F2F0EA}
+  .page-head{max-width:1200px;margin:0 auto;padding:76px 44px 44px}
+  .eyebrow{font:11px/1.2 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .page-head h1{
+    margin:22px 0 0;
+    max-width:940px;
+    font-size:clamp(38px,5.2vw,68px);
+    line-height:1.03;
+    letter-spacing:-.045em;
+    font-weight:680;
+  }
+  .page-head h1 em{font-style:normal;color:var(--accent)}
+  .intro{max-width:640px;margin:26px 0 0;font-size:16px;line-height:1.75;color:#4C4841}
+  .intro b{font-weight:650;color:var(--ink)}
+  .jump{display:flex;flex-wrap:wrap;gap:8px;margin-top:34px}
+  .jump a{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:10px 13px;border:1px solid var(--line);
+    color:var(--ink);text-decoration:none;
+    font:11px/1 var(--mono);letter-spacing:.02em;
+    background:rgba(255,255,255,.28);
+    transition:background .18s ease,color .18s ease,border-color .18s ease;
+  }
+  .jump a span{color:var(--accent);font-weight:700}
+  .jump a:hover{background:var(--ink);color:var(--page);border-color:var(--ink)}
+  .jump a:hover span{color:#F6A07C}
+  .concept{max-width:1200px;margin:0 auto;padding:64px 44px 96px;border-top:1px solid var(--line)}
+  .concept-head{display:grid;grid-template-columns:92px minmax(0,1fr);gap:34px;align-items:start}
+  .concept-no{font:12px/1 var(--mono);color:var(--accent);padding-top:8px}
+  .concept-kicker{font:10px/1.2 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .concept h2{margin:10px 0 0;font-size:clamp(30px,3.6vw,46px);line-height:1.05;letter-spacing:-.035em;font-weight:660}
+  .tagline{margin:12px 0 0;font-size:19px;line-height:1.5;color:#3D3933;max-width:640px}
+  .concept-desc{margin:16px 0 0;max-width:660px;font-size:14px;line-height:1.8;color:var(--muted)}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:18px}
+  .tag{font:10px/1 var(--mono);letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);padding:6px 8px;background:rgba(255,255,255,.25)}
+  .concept-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-top:28px;max-width:820px}
+  .meta-label{font:9px/1.2 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .meta-value{margin-top:6px;font-size:12px;line-height:1.5;color:var(--ink)}
+  .swatches{display:flex;gap:5px;margin-top:7px}
+  .swatch{width:17px;height:17px;border-radius:50%;border:1px solid rgba(0,0,0,.12)}
+  .phones{display:grid;grid-template-columns:repeat(2,372px);gap:42px;margin-top:46px;align-items:start;overflow-x:auto;padding-bottom:10px}
+  .phone-shell{display:flex;flex-direction:column;gap:11px;min-width:0}
+  .phone-label{font:10px/1 var(--mono);letter-spacing:.14em;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+  .phone-label span:last-child{color:#9A9488;letter-spacing:.06em}
+  .phone{
+    width:372px;height:812px;padding:6px;border-radius:35px;
+    background:linear-gradient(160deg,#242321,#0E0E0D 60%);
+    box-shadow:0 28px 70px rgba(36,31,25,.18),0 3px 0 rgba(255,255,255,.12) inset,0 0 0 1px rgba(0,0,0,.5);
+    flex:none;
+  }
+  .screen{
+    width:360px;height:800px;border-radius:29px;overflow:hidden;
+    display:flex;flex-direction:column;position:relative;
+    background:var(--bg);color:var(--ink);font-family:var(--sans);
+  }
+  .statusbar{
+    flex:0 0 27px;height:27px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 15px;font:600 10px/1 var(--sans);color:var(--sb-ink,var(--ink));position:relative;z-index:3;
+  }
+  .statusbar .time{letter-spacing:.01em}
+  .status-icons{display:flex;align-items:center;gap:5px}
+  .status-icons svg{width:12px;height:12px;display:block}
+  .app{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;position:relative}
+  .sysnav{
+    flex:0 0 25px;height:25px;display:flex;align-items:center;justify-content:center;gap:46px;
+    color:var(--nav-ink,var(--ink));opacity:.82;
+  }
+  .nav-tri{width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-right:7px solid currentColor}
+  .nav-cir{width:8px;height:8px;border:1.5px solid currentColor;border-radius:50%}
+  .nav-sq{width:7px;height:7px;border:1.5px solid currentColor;border-radius:1px}
+  .keycap{
+    width:23px;height:23px;border-radius:6px;display:grid;place-items:center;flex:none;
+    background:linear-gradient(145deg,#6366F1,#0EA5E9 72%);
+    color:#fff;font:700 11px/1 var(--mono);
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.28),0 2px 6px rgba(14,165,233,.25);
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 7px currentColor}
+  .spinner{width:15px;height:15px;border:2px solid rgba(56,189,248,.22);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .mono{font-family:var(--mono)}
+  .code-line{display:flex;gap:11px;white-space:pre;line-height:1.72}
+  .ln{width:18px;text-align:right;flex:none;color:var(--gutter);font-variant-numeric:tabular-nums}
+  .tok-c{color:var(--tok-comment)}
+  .tok-k{color:var(--tok-key)}
+  .tok-s{color:var(--tok-string)}
+  .tok-f{color:var(--tok-fn)}
+  .tok-n{color:var(--tok-num)}
+  .tok-p{color:var(--tok-punct)}
+
+  /* ─────────────────────────  A · Midnight IDE  ───────────────────────── */
+  .theme-a{
+    --bg:#0A0E14;--surface:#111823;--surface-2:#0D131C;--ink:#E8EEF7;--muted:#8794A6;
+    --line:#1E2937;--accent:#38BDF8;--accent-ink:#04141E;--green:#34D399;--amber:#FBBF24;--red:#FB7185;
+    --code:#0C121A;--gutter:#3D4B5E;
+    --tok-comment:#5B6B7F;--tok-key:#C4B5FD;--tok-string:#6EE7B7;--tok-fn:#7DD3FC;--tok-num:#FCA5A5;--tok-punct:#94A3B8;
+    --sb-ink:#C9D5E4;--nav-ink:#8A97A8;
+  }
+  .a-top{display:flex;align-items:center;justify-content:space-between;padding:12px 15px 0}
+  .a-brand{display:flex;align-items:center;gap:8px;font:600 12px/1 var(--mono);letter-spacing:.07em;color:#DDE7F3}
+  .a-health{display:flex;align-items:center;gap:6px;font:9px/1 var(--mono);letter-spacing:.06em;color:var(--green)}
+  .a-title-row{display:flex;align-items:flex-end;justify-content:space-between;padding:15px 16px 0}
+  .a-title{font-size:30px;line-height:1;font-weight:640;letter-spacing:-.04em}
+  .a-sub{margin-top:5px;font:9.5px/1.4 var(--mono);color:var(--muted)}
+  .a-ghost{width:30px;height:30px;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);border-radius:6px}
+  .a-search{
+    margin:14px 16px 0;height:38px;display:flex;align-items:center;gap:8px;padding:0 10px;
+    border:1px solid var(--line);background:var(--surface-2);border-radius:7px;color:#718096;font-size:11.5px;
+  }
+  .a-search svg{width:15px;height:15px;flex:none}
+  .a-kbd{margin-left:auto;font:9px/1 var(--mono);color:#5E6C7E;border:1px solid #293647;border-radius:4px;padding:3px 5px}
+  .a-env{display:flex;align-items:center;gap:7px;margin:9px 16px 0;font:9px/1.3 var(--mono);color:#6E7D90}
+  .a-env b{font-weight:500;color:var(--green)}
+  .a-env .sep{color:#324052}
+  .a-section{display:flex;align-items:center;justify-content:space-between;margin:13px 16px 7px;font:9px/1 var(--mono);letter-spacing:.1em;color:#5E6C7E}
+  .a-section span:last-child{color:#435165;letter-spacing:.02em}
+  .a-list{display:flex;flex-direction:column;gap:6px;padding:0 16px}
+  .a-row{
+    display:grid;grid-template-columns:22px minmax(0,1fr) 32px;gap:7px;align-items:center;
+    padding:9px 8px 9px 9px;border:1px solid var(--line);background:var(--surface);border-radius:7px;
+  }
+  .a-row.running{
+    border-color:rgba(56,189,248,.55);
+    background:linear-gradient(90deg,rgba(56,189,248,.11),rgba(56,189,248,.015));
+    box-shadow:0 0 0 1px rgba(56,189,248,.08) inset;
+  }
+  .a-index{font:9px/1 var(--mono);color:#405066}
+  .a-name{font-size:12.5px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#DCE6F2}
+  .a-meta{display:flex;align-items:center;gap:6px;margin-top:4px;font:8.5px/1 var(--mono);color:#5F6E81}
+  .a-meta .sched{color:#8B9CB0}
+  .a-run{
+    width:30px;height:30px;border-radius:50%;border:1px solid #263447;display:grid;place-items:center;
+    color:#7D8DA2;background:#0C121A;
+  }
+  .a-run svg{width:13px;height:13px}
+  .a-row.running .a-run{border-color:rgba(56,189,248,.38);background:rgba(56,189,248,.08);color:var(--accent)}
+  .a-console{margin:10px 16px 0;border:1px solid var(--line);background:#0C121A;flex:1;min-height:86px;overflow:hidden}
+  .a-console-head{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-bottom:1px solid #16202C;font:8px/1 var(--mono);color:#526174;letter-spacing:.08em}
+  .a-console-head span:last-child{color:#3E4C5E;letter-spacing:.02em}
+  .a-console-line{padding:3px 8px;font:8.5px/1.5 var(--mono);color:#7C8A9E;white-space:nowrap;overflow:hidden}
+  .a-console-line b{color:#A9B8CA;font-weight:500}
+  .a-console-line .ok{color:#34D399}
+  .a-console-line .dim{color:#4E5D70}
+  .a-runbar{
+    margin:auto 16px 8px;padding:8px 10px;display:flex;align-items:center;gap:8px;
+    border:1px solid rgba(56,189,248,.35);background:rgba(56,189,248,.08);border-radius:7px;
+  }
+  .a-runbar .grow{flex:1;min-width:0}
+  .a-runbar b{display:block;font-size:10.5px;font-weight:600;color:#D7E6F4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .a-runbar span{display:block;margin-top:2px;font:8.5px/1 var(--mono);color:#6D8AA1}
+  .a-mini{width:28px;height:28px;border:1px solid rgba(56,189,248,.32);display:grid;place-items:center;color:var(--accent);border-radius:5px;background:rgba(56,189,248,.08)}
+  .a-mini svg{width:12px;height:12px}
+  .a-nav{display:flex;align-items:center;gap:7px;padding:8px 16px 5px;border-top:1px solid #16202C}
+  .a-nav .item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font:8.5px/1 var(--mono);color:#5D6B7D}
+  .a-nav .item svg{width:16px;height:16px}
+  .a-nav .active{color:var(--accent)}
+  .a-nav .compose{width:38px;height:32px;border:1px solid #2A394B;border-radius:6px;display:grid;place-items:center;color:#AFC0D4;background:#111823}
+  .a-nav .compose svg{width:15px;height:15px}
+  /* A editor */
+  .a-editor-head{display:flex;align-items:center;gap:9px;padding:11px 14px 9px}
+  .a-back{width:26px;height:26px;display:grid;place-items:center;color:#94A3B8}
+  .a-back svg{width:17px;height:17px}
+  .a-editor-title{flex:1;min-width:0}
+  .a-editor-title b{display:block;font:600 12px/1.2 var(--mono);color:#DDE7F3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .a-editor-title span{display:block;margin-top:2px;font:8.5px/1 var(--mono);color:#5E6C7E}
+  .a-icon-btn{width:28px;height:28px;display:grid;place-items:center;color:#8A97A8;border:1px solid transparent;border-radius:5px}
+  .a-icon-btn.on{color:var(--accent);border-color:rgba(56,189,248,.25);background:rgba(56,189,248,.06)}
+  .a-icon-btn svg{width:15px;height:15px}
+  .a-tabs{display:flex;gap:19px;padding:0 15px;border-bottom:1px solid var(--line);font:9.5px/1 var(--mono);letter-spacing:.08em}
+  .a-tab{padding:10px 0;color:#64748B}
+  .a-tab.active{color:var(--accent);border-bottom:2px solid var(--accent)}
+  .a-crumb{display:flex;align-items:center;justify-content:space-between;padding:8px 15px;font:8.5px/1 var(--mono);color:#526174}
+  .a-chip{font:8px/1 var(--mono);color:#7DD3FC;border:1px solid rgba(56,189,248,.25);padding:2px 5px;border-radius:3px}
+  .a-code{flex:1;min-height:0;overflow:hidden;background:var(--code);padding:10px 14px 0;font:10px/1.72 var(--mono)}
+  .a-code .code-line{font-size:10px}
+  .a-actions{display:flex;align-items:center;gap:7px;padding:8px 14px 6px;border-top:1px solid var(--line);background:#0C121A}
+  .a-btn-run{flex:1;height:38px;display:flex;align-items:center;justify-content:center;gap:7px;background:var(--accent);color:var(--accent-ink);border-radius:6px;font:700 10px/1 var(--mono);letter-spacing:.08em}
+  .a-btn-run svg{width:13px;height:13px}
+  .a-btn{height:38px;padding:0 9px;display:flex;align-items:center;gap:4px;border:1px solid #263447;color:#8FA0B3;border-radius:6px;font:8.5px/1 var(--mono);background:#0C121A}
+  .a-btn svg{width:12px;height:12px}
+  .a-foot{display:flex;align-items:center;justify-content:space-between;padding:0 15px 7px;background:#0C121A;font:8px/1 var(--mono);color:#4E5D70}
+  .a-foot .ok{color:#34D399}
+
+  /* ─────────────────────────  B · Automation Deck  ───────────────────────── */
+  .theme-b{
+    --bg:#F3F3FB;--surface:#FFFFFF;--surface-2:#F8F7FF;--ink:#191B2C;--muted:#747A8F;
+    --line:#E5E4F1;--accent:#5B5BD6;--accent-2:#8B5CF6;--accent-soft:#EEEDFF;
+    --green:#118A64;--green-soft:#E4F6EF;--amber:#B7680B;--amber-soft:#FFF3DE;--red:#C2414B;
+    --code:#FFFFFF;--gutter:#B5B2C8;
+    --tok-comment:#9A96AD;--tok-key:#7C3AED;--tok-string:#0F8A63;--tok-fn:#4F46E5;--tok-num:#C2414B;--tok-punct:#6B7187;
+    --sb-ink:#191B2C;--nav-ink:#747A8F;
+  }
+  .b-top{display:flex;justify-content:space-between;align-items:flex-start;padding:14px 18px 0}
+  .b-hello{font:10px/1 var(--mono);letter-spacing:.08em;color:var(--muted)}
+  .b-title{margin-top:5px;font-size:27px;line-height:1.05;font-weight:730;letter-spacing:-.045em}
+  .b-avatar{
+    width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
+    background:linear-gradient(135deg,#5B5BD6,#A78BFA);color:#fff;font:650 11px/1 var(--sans);
+    box-shadow:0 7px 16px rgba(91,91,214,.24),0 0 0 4px rgba(91,91,214,.08);
+  }
+  .b-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:15px 18px 0}
+  .b-stat{
+    display:flex;align-items:center;gap:9px;padding:9px 10px;background:var(--surface);
+    border:1px solid var(--line);border-radius:14px;box-shadow:0 5px 14px rgba(54,45,120,.045);
+  }
+  .b-stat-icon{width:29px;height:29px;border-radius:9px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+  .b-stat-icon.green{background:var(--green-soft);color:var(--green)}
+  .b-stat-icon svg{width:14px;height:14px}
+  .b-stat b{display:block;font-size:14px;line-height:1;letter-spacing:-.02em}
+  .b-stat span{display:block;margin-top:3px;font-size:9px;line-height:1;color:var(--muted)}
+  .b-search{
+    margin:12px 18px 0;height:40px;display:flex;align-items:center;gap:8px;
+    padding:0 12px;background:var(--surface);border:1px solid var(--line);border-radius:13px;
+    color:#8A8FA3;font-size:11.5px;box-shadow:0 4px 12px rgba(54,45,120,.035);
+  }
+  .b-search svg{width:15px;height:15px;flex:none}
+  .b-search .filter{margin-left:auto;width:25px;height:25px;border-radius:8px;display:grid;place-items:center;background:#F1F0FA;color:#6B7187}
+  .b-search .filter svg{width:12px;height:12px}
+  .b-section{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 7px}
+  .b-section b{font-size:11px;letter-spacing:.02em}
+  .b-section span{font:9px/1 var(--mono);color:var(--accent)}
+  .b-list{display:flex;flex-direction:column;gap:8px;padding:0 18px}
+  .b-card{
+    display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface);
+    border:1px solid var(--line);border-radius:16px;box-shadow:0 6px 18px rgba(54,45,120,.045);
+  }
+  .b-card.running{border-color:#C4C1FF;background:linear-gradient(180deg,#FEFDFF,#F4F3FF);box-shadow:0 8px 22px rgba(91,91,214,.10)}
+  .b-ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;flex:none;font:700 11px/1 var(--mono)}
+  .b-ico.violet{background:#EDE9FE;color:#6D28D9}
+  .b-ico.blue{background:#E2F2FF;color:#0369A1}
+  .b-ico.green{background:#E4F6EF;color:#0F8A63}
+  .b-ico.amber{background:#FFF3DE;color:#B45309}
+  .b-card-main{flex:1;min-width:0}
+  .b-card-name{font-size:12.5px;font-weight:650;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .b-chips{display:flex;gap:5px;margin-top:5px;overflow:hidden}
+  .b-chip{font:8px/1 var(--mono);padding:3px 6px;border-radius:99px;background:#F1F0FA;color:#6B7187;white-space:nowrap}
+  .b-chip.green{background:var(--green-soft);color:var(--green)}
+  .b-chip.violet{background:var(--accent-soft);color:var(--accent)}
+  .b-play{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff;flex:none;box-shadow:0 5px 12px rgba(91,91,214,.24)}
+  .b-play svg{width:13px;height:13px}
+  .b-card.running .b-play{background:#fff;color:var(--accent);box-shadow:0 0 0 1px #C4C1FF inset}
+  .b-progress{height:3px;border-radius:2px;background:#E8E6FF;margin-top:8px;overflow:hidden}
+  .b-progress i{display:block;height:100%;width:44%;border-radius:2px;background:linear-gradient(90deg,#5B5BD6,#8B5CF6)}
+  .b-status{
+    margin:auto 18px 7px;padding:9px 11px;border-radius:14px;display:flex;align-items:center;gap:9px;
+    background:#191B2C;color:#fff;box-shadow:0 12px 26px rgba(25,27,44,.20);
+  }
+  .b-status .pulse{width:7px;height:7px;border-radius:50%;background:#8B5CF6;box-shadow:0 0 0 5px rgba(139,92,246,.15)}
+  .b-status .grow{flex:1;min-width:0}
+  .b-status b{display:block;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .b-status span{display:block;margin-top:2px;font:8.5px/1 var(--mono);color:#A9AEC4}
+  .b-status .stop{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#2A2D43;color:#D9D8E6}
+  .b-status .stop svg{width:11px;height:11px}
+  .b-nav{
+    margin:5px 18px 7px;height:55px;border-radius:22px;background:var(--surface);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-around;box-shadow:0 14px 30px rgba(54,45,120,.10);
+  }
+  .b-nav .item{display:flex;flex-direction:column;align-items:center;gap:3px;font:8.5px/1 var(--sans);color:#8A8FA3;width:62px}
+  .b-nav .item svg{width:17px;height:17px}
+  .b-nav .active{color:var(--accent);font-weight:650}
+  .b-fab{
+    width:44px;height:44px;border-radius:50%;display:grid;place-items:center;margin-top:-19px;
+    background:linear-gradient(135deg,#5B5BD6,#8B5CF6);color:#fff;
+    box-shadow:0 10px 22px rgba(91,91,214,.36),0 0 0 5px #F3F3FB;
+  }
+  .b-fab svg{width:18px;height:18px}
+  /* B editor */
+  .b-editor-head{display:flex;align-items:center;gap:9px;padding:11px 16px 8px}
+  .b-back{width:27px;height:27px;display:grid;place-items:center;color:#4F5468}
+  .b-back svg{width:17px;height:17px}
+  .b-editor-title{flex:1;min-width:0}
+  .b-editor-title b{display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .b-editor-title span{display:block;margin-top:2px;font:8.5px/1 var(--mono);color:var(--green)}
+  .b-iconbtn{width:28px;height:28px;display:grid;place-items:center;color:#6B7187;border-radius:8px}
+  .b-iconbtn svg{width:15px;height:15px}
+  .b-tabs{margin:3px 16px 0;height:34px;padding:3px;border-radius:11px;background:#EDEBF8;display:flex;gap:2px}
+  .b-tab{flex:1;display:flex;align-items:center;justify-content:center;border-radius:9px;font-size:10px;color:#777D92}
+  .b-tab.active{background:#fff;color:var(--accent);font-weight:650;box-shadow:0 2px 7px rgba(54,45,120,.08)}
+  .b-last{
+    margin:10px 16px 0;padding:8px 10px;border-radius:11px;background:var(--green-soft);
+    display:flex;align-items:center;gap:7px;color:var(--green);
+  }
+  .b-last svg{width:14px;height:14px;flex:none}
+  .b-last b{font-size:9.5px;font-weight:650}
+  .b-last span{font:8px/1 var(--mono);color:#4B7A69}
+  .b-last .link{margin-left:auto;font:8px/1 var(--mono);color:var(--green);text-decoration:underline;text-underline-offset:2px}
+  .b-code-card{
+    flex:1;min-height:0;margin:10px 16px 0;background:var(--code);border:1px solid var(--line);
+    border-radius:15px;overflow:hidden;box-shadow:0 8px 22px rgba(54,45,120,.05);
+  }
+  .b-code-head{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;border-bottom:1px solid #F0EFF7;font:8px/1 var(--mono);color:#9A96AD}
+  .b-code-head .file{display:flex;align-items:center;gap:5px;color:#5E6275}
+  .b-code-head .file i{width:5px;height:5px;border-radius:50%;background:#5B5BD6;display:block}
+  .b-code{padding:9px 11px 0;font:9.8px/1.78 var(--mono)}
+  .b-code .code-line{font-size:9.8px}
+  .b-actions{display:flex;align-items:center;gap:8px;padding:9px 16px 7px}
+  .b-run{flex:1;height:42px;border-radius:14px;background:linear-gradient(135deg,#5B5BD6,#7C5CE6);color:#fff;display:flex;align-items:center;justify-content:center;gap:7px;font-size:12px;font-weight:650;box-shadow:0 8px 18px rgba(91,91,214,.27)}
+  .b-run svg{width:14px;height:14px}
+  .b-round{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;color:#6B7187;box-shadow:0 4px 12px rgba(54,45,120,.04)}
+  .b-round svg{width:15px;height:15px}
+  .b-foot{display:flex;justify-content:space-between;padding:0 16px 7px;font:8px/1 var(--mono);color:#9A96AD}
+
+  /* ─────────────────────────  C · Paper & Ink  ───────────────────────── */
+  .theme-c{
+    --bg:#F7F4EC;--surface:#FAF8F2;--ink:#1B1A17;--muted:#726C5F;--line:#D6D0C2;
+    --accent:#B23A1A;--green:#2F6B4F;--code:#F3EFE4;--gutter:#B8B0A0;
+    --tok-comment:#8B8374;--tok-key:#1B1A17;--tok-string:#2F6B4F;--tok-fn:#B23A1A;--tok-num:#8A4B2F;--tok-punct:#5E594E;
+    --sb-ink:#1B1A17;--nav-ink:#5E594E;
+  }
+  .theme-c .serif{font-family:"Songti SC","Noto Serif CJK SC","Source Han Serif SC",serif}
+  .c-top{display:flex;align-items:center;justify-content:space-between;padding:16px 22px 0}
+  .c-wordmark{font:600 9px/1 var(--mono);letter-spacing:.24em}
+  .c-date{font:9px/1 var(--mono);color:var(--muted);letter-spacing:.04em}
+  .c-masthead{font-family:"Songti SC","Noto Serif CJK SC","Source Han Serif SC",serif;font-size:44px;line-height:.98;letter-spacing:-.03em;padding:22px 22px 0}
+  .c-deck{padding:9px 22px 0;font-size:11.5px;line-height:1.65;color:var(--muted);max-width:290px}
+  .c-rule{height:1px;background:var(--ink);margin:17px 22px 0}
+  .c-search{display:flex;align-items:center;gap:8px;margin:12px 22px 0;padding:8px 0;border-bottom:1px solid var(--line);color:#8A8374;font-size:11px}
+  .c-search svg{width:14px;height:14px}
+  .c-search .hint{margin-left:auto;font:8.5px/1 var(--mono);color:#A39B8B}
+  .c-list{padding:2px 22px 0}
+  .c-row{display:grid;grid-template-columns:25px minmax(0,1fr) auto;gap:9px;align-items:baseline;padding:12px 0 11px;border-bottom:1px solid var(--line)}
+  .c-no{font:9px/1.4 var(--mono);color:#9A9282}
+  .c-name{font-family:"Songti SC","Noto Serif CJK SC","Source Han Serif SC",serif;font-size:16.5px;font-weight:600;line-height:1.3;letter-spacing:-.01em}
+  .c-meta{margin-top:4px;font:8.5px/1.4 var(--mono);color:#847D6E}
+  .c-run{font:9px/1 var(--mono);color:var(--accent);border-bottom:1px solid var(--accent);padding-bottom:2px;white-space:nowrap}
+  .c-row.running .c-name{color:var(--accent)}
+  .c-row.running .c-meta{color:#A65B43}
+  .c-running{display:inline-flex;align-items:center;gap:4px;margin-left:6px;font:8px/1 var(--mono);color:var(--accent)}
+  .c-running i{width:5px;height:5px;border-radius:50%;background:var(--accent);display:block}
+  .c-note{margin:auto 22px 9px;padding-top:8px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font:8.5px/1.4 var(--mono);color:#8A8374}
+  .c-nav{display:flex;align-items:center;gap:22px;padding:9px 22px 7px;border-top:1px solid var(--ink)}
+  .c-nav .item{font:9px/1 var(--mono);color:#7F786A;letter-spacing:.06em}
+  .c-nav .active{color:var(--accent);border-bottom:1px solid var(--accent);padding-bottom:3px}
+  .c-nav .new{margin-left:auto;color:var(--ink);border:1px solid var(--ink);padding:4px 7px;letter-spacing:.04em}
+  /* C editor */
+  .c-editor-head{display:flex;align-items:center;gap:9px;padding:12px 20px 9px}
+  .c-back{width:25px;height:25px;display:grid;place-items:center;color:var(--ink)}
+  .c-back svg{width:16px;height:16px}
+  .c-editor-title{flex:1;min-width:0;font-family:"Songti SC","Noto Serif CJK SC","Source Han Serif SC",serif;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .c-save{font:9px/1 var(--mono);color:var(--accent);border-bottom:1px solid var(--accent);padding-bottom:2px}
+  .c-tabs{display:flex;gap:18px;padding:0 20px;border-bottom:1px solid var(--ink);font:9px/1 var(--mono);letter-spacing:.08em}
+  .c-tab{padding:9px 0;color:#827B6C}
+  .c-tab.active{color:var(--accent);border-bottom:2px solid var(--accent)}
+  .c-crumb{display:flex;justify-content:space-between;padding:8px 20px;font:8px/1 var(--mono);color:#918A7A;letter-spacing:.03em}
+  .c-code{flex:1;min-height:0;overflow:hidden;background:var(--code);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 18px 0;font:9.8px/1.82 var(--mono)}
+  .c-code .code-line{font-size:9.8px}
+  .c-actions{display:flex;align-items:center;gap:8px;padding:9px 20px 7px}
+  .c-btn-run{height:38px;flex:1;background:var(--ink);color:#F7F4EC;display:flex;align-items:center;justify-content:center;gap:6px;font:650 10px/1 var(--mono);letter-spacing:.08em}
+  .c-btn-run svg{width:12px;height:12px}
+  .c-btn{height:38px;padding:0 9px;display:flex;align-items:center;gap:4px;border:1px solid var(--line);color:#6F685A;font:8.5px/1 var(--mono);background:transparent}
+  .c-btn svg{width:11px;height:11px}
+  .c-foot{display:flex;justify-content:space-between;padding:0 20px 7px;font:8px/1 var(--mono);color:#9A9282}
+
+  /* ─────────────────────────  D · Control Room  ───────────────────────── */
+  .theme-d{
+    --bg:#E9E6DD;--surface:#F5F2E9;--surface-2:#EFECE2;--ink:#111111;--muted:#5E5A50;
+    --line:#111111;--accent:#FF5C00;--green:#1F8A4C;--red:#C02626;
+    --code:#F5F2E9;--gutter:#A8A294;
+    --tok-comment:#7C7669;--tok-key:#111111;--tok-string:#1F8A4C;--tok-fn:#C43D00;--tok-num:#8A3B00;--tok-punct:#4D4941;
+    --sb-ink:#111111;--nav-ink:#111111;
+  }
+  .d-top{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#111;color:#F5F2E9;font:8.5px/1 var(--mono);letter-spacing:.11em}
+  .d-top b{font-weight:600}
+  .d-sys{display:flex;align-items:center;gap:5px;color:#7DE0A2}
+  .d-sys i{width:5px;height:5px;border-radius:50%;background:#7DE0A2;box-shadow:0 0 7px #7DE0A2;display:block}
+  .d-strip{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line);background:var(--surface)}
+  .d-cell{padding:6px 8px;border-right:1px solid var(--line);font:7.5px/1 var(--mono);color:#6E695D;letter-spacing:.06em}
+  .d-cell:last-child{border-right:0}
+  .d-cell b{display:block;margin-top:3px;font:700 10px/1 var(--mono);color:#111;letter-spacing:.02em}
+  .d-cell b.on{color:var(--green)}
+  .d-cell b.warn{color:#B84A00}
+  .d-title-row{display:flex;align-items:flex-end;justify-content:space-between;padding:13px 12px 0}
+  .d-title{font-size:25px;line-height:1;font-weight:800;letter-spacing:-.05em}
+  .d-count{font:9px/1 var(--mono);color:#6E695D}
+  .d-search{margin:10px 12px 0;height:34px;display:flex;align-items:center;gap:7px;padding:0 9px;background:var(--surface);border:1px solid var(--line);font:8.5px/1 var(--mono);color:#7A7466}
+  .d-search svg{width:13px;height:13px}
+  .d-search .kbd{margin-left:auto;background:#111;color:#F5F2E9;padding:3px 5px;font:7.5px/1 var(--mono)}
+  .d-list{padding:9px 12px 0}
+  .d-row{display:grid;grid-template-columns:22px minmax(0,1fr) 34px;gap:7px;align-items:center;padding:8px;background:var(--surface);border:1px solid var(--line);border-bottom:0}
+  .d-row:last-child{border-bottom:1px solid var(--line)}
+  .d-row.running{border-left:4px solid var(--accent);padding-left:5px;background:#FFF3E9}
+  .d-id{font:7.5px/1 var(--mono);color:#8B8577}
+  .d-name{font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .d-meta{margin-top:3px;font:7.5px/1 var(--mono);color:#756F62;display:flex;gap:6px}
+  .d-meta .state{color:var(--green);font-weight:600}
+  .d-row.running .d-meta .state{color:#C24100}
+  .d-btn{width:31px;height:26px;display:grid;place-items:center;background:#111;color:#F5F2E9;border:1px solid #111}
+  .d-btn svg{width:11px;height:11px}
+  .d-row.running .d-btn{background:var(--accent);color:#111;border-color:var(--accent)}
+  .d-events{margin:8px 12px 0;border:1px solid var(--line);background:#111;color:#F5F2E9;flex:1;min-height:96px;display:flex;flex-direction:column;overflow:hidden}
+  .d-events-head{display:flex;align-items:center;justify-content:space-between;padding:5px 7px;border-bottom:1px solid #333;font:7px/1 var(--mono);letter-spacing:.1em;color:#9A9488}
+  .d-events-head b{color:#7DE0A2;font-weight:600}
+  .d-event{display:grid;grid-template-columns:48px minmax(0,1fr);gap:6px;padding:4px 7px;font:7.5px/1.4 var(--mono);color:#BDB7AA;border-bottom:1px solid #242424;white-space:nowrap;overflow:hidden}
+  .d-event span:first-child{color:#6E695D}
+  .d-event b{color:#F5F2E9;font-weight:500;overflow:hidden;text-overflow:ellipsis}
+  .d-statusbar{margin:auto 12px 8px;padding:7px 9px;background:#111;color:#F5F2E9;display:flex;align-items:center;justify-content:space-between;font:7.5px/1.2 var(--mono);letter-spacing:.04em}
+  .d-statusbar .left{display:flex;align-items:center;gap:6px;min-width:0}
+  .d-statusbar .left i{width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);display:block;flex:none}
+  .d-statusbar b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .d-statusbar .stop{color:#FFB48A;font-weight:700;letter-spacing:.08em}
+  .d-nav{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);background:var(--surface)}
+  .d-nav .item{padding:7px 0;text-align:center;font:7.5px/1 var(--mono);letter-spacing:.08em;border-right:1px solid var(--line);color:#6E695D}
+  .d-nav .item:last-child{border-right:0}
+  .d-nav .active{background:var(--accent);color:#111;font-weight:700}
+  /* D editor */
+  .d-editor-top{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#111;color:#F5F2E9}
+  .d-back{width:24px;height:24px;display:grid;place-items:center;color:#F5F2E9}
+  .d-back svg{width:15px;height:15px}
+  .d-editor-title{flex:1;min-width:0;font:8px/1.3 var(--mono);letter-spacing:.06em}
+  .d-editor-title b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .d-editor-title span{display:block;margin-top:2px;color:#8F8A7E}
+  .d-save{width:24px;height:24px;display:grid;place-items:center;color:#FFB48A}
+  .d-save svg{width:14px;height:14px}
+  .d-tabs{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line);background:var(--surface)}
+  .d-tab{padding:8px 0;text-align:center;font:8px/1 var(--mono);letter-spacing:.1em;color:#6E695D;border-right:1px solid var(--line)}
+  .d-tab:last-child{border-right:0}
+  .d-tab.active{background:#111;color:#FFB48A}
+  .d-meta-strip{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line);background:#E2DED3}
+  .d-meta-cell{padding:5px 8px;font:7px/1.3 var(--mono);color:#6E695D;border-right:1px solid var(--line)}
+  .d-meta-cell:last-child{border-right:0}
+  .d-meta-cell b{display:block;margin-top:2px;font:700 8.5px/1 var(--mono);color:#111}
+  .d-meta-cell b.ok{color:var(--green)}
+  .d-code{flex:1;min-height:0;overflow:hidden;background:var(--code);padding:9px 12px 0;font:9.6px/1.78 var(--mono)}
+  .d-code .code-line{font-size:9.6px}
+  .d-code-foot{display:flex;align-items:center;justify-content:space-between;padding:4px 12px 6px;background:var(--code);border-top:1px solid #D5D0C4;font:7px/1 var(--mono);color:#8B8577}
+  .d-actions{display:grid;grid-template-columns:1fr 38px 38px 38px;gap:5px;padding:8px 10px 6px;background:var(--surface);border-top:1px solid var(--line)}
+  .d-run{height:38px;background:var(--accent);color:#111;display:flex;align-items:center;justify-content:center;gap:6px;font:800 9px/1 var(--mono);letter-spacing:.1em;border:1px solid #111}
+  .d-run svg{width:11px;height:11px}
+  .d-sq{height:38px;border:1px solid #111;background:#111;color:#F5F2E9;display:grid;place-items:center}
+  .d-sq svg{width:13px;height:13px}
+  .d-foot{display:flex;justify-content:space-between;padding:0 12px 7px;background:var(--surface);font:7px/1 var(--mono);color:#8B8577}
+
+  /* page furniture */
+  .concept-notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px;margin-top:38px;max-width:1000px}
+  .note-label{font:9px/1 var(--mono);letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+  .note-title{margin-top:7px;font-size:14px;font-weight:650;letter-spacing:-.01em}
+  .note-body{margin-top:6px;font-size:12.5px;line-height:1.7;color:#5A554C}
+  .compare{max-width:1200px;margin:0 auto;padding:68px 44px 110px;border-top:1px solid var(--line)}
+  .compare h2{margin:10px 0 0;font-size:clamp(28px,3.2vw,40px);letter-spacing:-.035em;line-height:1.1}
+  .compare p{max-width:680px;margin:14px 0 0;font-size:14px;line-height:1.75;color:var(--muted)}
+  .table-wrap{margin-top:14px;overflow-x:auto}
+  .table-label{margin-top:30px;font:9px/1.2 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  table{border-collapse:collapse;width:100%;min-width:560px;font-size:12px}
+  th{font:9px/1.3 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:left;padding:0 14px 10px 0;border-bottom:1px solid var(--ink)}
+  td{padding:14px 14px 14px 0;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.6}
+  td:first-child{font-weight:650;white-space:nowrap}
+  .cost{display:block;margin-top:5px;font:9px/1.5 var(--mono);color:#8E887C}
+  .pick{display:flex;gap:12px;align-items:flex-start;margin-top:28px;padding:18px 20px;background:#171614;color:#F2F0EA;max-width:850px}
+  .pick .num{font:11px/1 var(--mono);color:#F6A07C;padding-top:2px}
+  .pick b{font-weight:650}
+  .pick p{margin:5px 0 0;font-size:12.5px;line-height:1.7;color:#C9C3B7}
+  .footer{max-width:1200px;margin:0 auto;padding:0 44px 64px;display:flex;justify-content:space-between;gap:20px;font:10px/1.6 var(--mono);color:#8E887C}
+  @media (max-width:980px){
+    .page-head,.concept,.compare{padding-left:24px;padding-right:24px}
+    .concept-head{grid-template-columns:1fr;gap:10px}
+    .concept-no{padding-top:0}
+    .phones{grid-template-columns:372px;justify-content:center}
+    .concept-meta{grid-template-columns:1fr 1fr}
+    .concept-notes{grid-template-columns:1fr;gap:18px}
+    .footer{padding-left:24px;padding-right:24px;flex-direction:column;gap:6px}
+  }
+  @media (max-width:420px){
+    .page-head h1{font-size:37px}
+    .phones{grid-template-columns:343px}
+    .phone{transform:scale(.922);transform-origin:top left;margin-bottom:-63px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
+  /* ─────────────────────────  ROUND 02 · 1 × 2 混合  ───────────────────────── */
+  .round-two-intro{padding-bottom:56px}
+  .hybrid-index{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:30px;max-width:1000px}
+  .hybrid-index a{display:block;padding:13px 14px;border:1px solid var(--line);text-decoration:none;color:var(--ink);background:rgba(255,255,255,.3);transition:background .18s,color .18s,border-color .18s}
+  .hybrid-index a:hover{background:var(--ink);color:var(--page);border-color:var(--ink)}
+  .hybrid-index .n{font:9px/1 var(--mono);color:var(--accent);letter-spacing:.1em}
+  .hybrid-index .t{display:block;margin-top:7px;font-size:13px;font-weight:650;letter-spacing:-.01em}
+  .hybrid-index .d{display:block;margin-top:4px;font-size:10.5px;line-height:1.5;color:var(--muted)}
+  .hybrid-index a:hover .d{color:#C9C3B7}
+  .theme-nd{
+    --bg:#0B1020;--surface:#141B2E;--surface-2:#101728;--ink:#E8EDF8;--muted:#8A94AD;
+    --line:#25304A;--accent:#6C7CFF;--accent-2:#38BDF8;--accent-soft:#1D2742;
+    --green:#34D399;--green-soft:#12352C;--amber:#FBBF24;--amber-soft:#3A2A12;--red:#FB7185;
+    --code:#0D1424;--gutter:#42506A;
+    --tok-comment:#5B6B7F;--tok-key:#C4B5FD;--tok-string:#6EE7B7;--tok-fn:#7DD3FC;--tok-num:#FCA5A5;--tok-punct:#94A3B8;
+    --sb-ink:#C9D5E4;--nav-ink:#8A94AD;
+  }
+  .theme-nd .b-stat,.theme-nd .b-search,.theme-nd .b-card,.theme-nd .b-nav{background:var(--surface);border-color:var(--line);box-shadow:none}
+  .theme-nd .b-search{color:#8A94AD}
+  .theme-nd .b-search .filter{background:#1D2742;color:#A5B4FF}
+  .theme-nd .b-card.running{background:linear-gradient(180deg,#171F35,#141B2E);border-color:#3B4A7A;box-shadow:0 8px 22px rgba(0,0,0,.24)}
+  .theme-nd .b-chip{background:#1D2742;color:#9AA6C4}
+  .theme-nd .b-chip.green{background:#12352C;color:#4ADE9F}
+  .theme-nd .b-chip.violet{background:#222B4A;color:#A5B4FF}
+  .theme-nd .b-progress{background:#222B4A}
+  .theme-nd .b-status{background:#070B16;box-shadow:0 12px 26px rgba(0,0,0,.35)}
+  .theme-nd .b-nav{background:#111827}
+  .theme-nd .b-fab{box-shadow:0 10px 22px rgba(108,124,255,.35),0 0 0 5px #0B1020}
+  .theme-nd .b-tabs{background:#101728}
+  .theme-nd .b-tab{color:#8A94AD}
+  .theme-nd .b-tab.active{background:#1D2742;color:#A5B4FF;box-shadow:none}
+  .theme-nd .b-last{background:#12352C;color:#4ADE9F}
+  .theme-nd .b-last span{color:#7FBFA6}
+  .theme-nd .b-last .link{color:#4ADE9F}
+  .theme-nd .b-code-card{box-shadow:0 8px 22px rgba(0,0,0,.24)}
+  .theme-nd .b-code-head{border-color:#25304A}
+  .theme-nd .b-code-head .file{color:#C7D0E4}
+  .theme-nd .b-code-head .file i{background:#6C7CFF}
+  .theme-nd .b-foot{color:#5F6C84}
+  .theme-nd .b-run{background:linear-gradient(135deg,#5B5BD6,#38BDF8);color:#06101F}
+  .theme-nd .b-round{background:#141B2E;border-color:#25304A;color:#A5B4FF;box-shadow:none}
+  .theme-nd .b-back,.theme-nd .b-iconbtn{color:#A5B4FF}
+  .theme-nd .b-editor-title span{color:#4ADE9F}
+  .theme-split-ed{
+    --bg:#0B1020;--surface:#111827;--surface-2:#0D1424;--ink:#E8EDF8;--muted:#8A94AD;
+    --line:#25304A;--accent:#6C7CFF;--accent-ink:#FFFFFF;--green:#34D399;--amber:#FBBF24;--red:#FB7185;
+    --code:#0D1424;--gutter:#42506A;
+    --tok-comment:#5B6B7F;--tok-key:#C4B5FD;--tok-string:#6EE7B7;--tok-fn:#7DD3FC;--tok-num:#FCA5A5;--tok-punct:#94A3B8;
+    --sb-ink:#C9D5E4;--nav-ink:#8A94AD;
+  }
+  .theme-split-ed .a-editor-title b{color:#E8EDF8}
+  .theme-split-ed .a-editor-title span{color:#8A94AD}
+  .theme-split-ed .a-tab.active{color:#A5B4FF;border-color:#6C7CFF}
+  .theme-split-ed .a-chip{color:#A5B4FF;border-color:#3B4A7A}
+  .theme-split-ed .a-actions{background:#0D1424}
+  .theme-split-ed .a-btn-run{background:linear-gradient(135deg,#5B5BD6,#38BDF8);color:#06101F}
+  .theme-split-ed .a-btn{background:#0D1424;border-color:#25304A;color:#9AA6C4}
+  .theme-split-ed .a-foot{background:#0D1424;color:#5F6C84}
+  .theme-split-ed .a-foot .ok{color:#4ADE9F}
+  .theme-day{
+    --bg:#F7F8FC;--surface:#FFFFFF;--surface-2:#F1F3F9;--ink:#161A24;--muted:#6D7486;
+    --line:#E1E5EF;--accent:#2563EB;--accent-ink:#FFFFFF;--green:#0F8A63;--amber:#B45309;--red:#C2414B;
+    --code:#FFFFFF;--gutter:#B4BCCB;
+    --tok-comment:#8B93A6;--tok-key:#4F46E5;--tok-string:#0F8A63;--tok-fn:#2563EB;--tok-num:#C2414B;--tok-punct:#5B6478;
+    --sb-ink:#161A24;--nav-ink:#6D7486;
+  }
+  .theme-day .a-brand{color:#161A24}
+  .theme-day .a-name{color:#161A24}
+  .theme-day .a-editor-title b{color:#161A24}
+  .theme-day .a-editor-title span{color:#6D7486}
+  .theme-day .a-back{color:#4B5563}
+  .theme-day .a-icon-btn{color:#6D7486}
+  .theme-day .a-icon-btn.on{color:#2563EB;border-color:#BFD3FF;background:#EEF4FF}
+  .theme-day .a-sub,.theme-day .a-meta,.theme-day .a-env,.theme-day .a-section{color:#6D7486}
+  .theme-day .a-search{background:#F1F3F9;color:#7A8296}
+  .theme-day .a-ghost{color:#6D7486}
+  .theme-day .a-run{background:#F1F3F9;border-color:#DDE3EF;color:#2563EB}
+  .theme-day .a-row.running{background:linear-gradient(90deg,#EEF4FF,#FFFFFF);border-color:#BFD3FF}
+  .theme-day .a-row.running .a-name{color:#1E3A8A}
+  .theme-day .a-runbar{background:#111827;border-color:#111827}
+  .theme-day .a-runbar b{color:#F3F6FF}
+  .theme-day .a-runbar span{color:#A9B2C6}
+  .theme-day .a-mini{background:#1F2937;border-color:#374151;color:#93C5FD}
+  .theme-day .a-nav{border-color:#E1E5EF}
+  .theme-day .a-actions{background:#111827;border-color:#111827}
+  .theme-day .a-btn{background:#111827;border-color:#374151;color:#C7D0E4}
+  .theme-day .a-foot{background:#111827;color:#8A93A6}
+  .theme-day .a-foot .ok{color:#4ADE80}
+  .theme-day .a-tabs{border-color:#E1E5EF}
+  .theme-day .a-tab{color:#7A8296}
+  .theme-day .a-tab.active{color:#2563EB;border-color:#2563EB}
+  .theme-day .a-crumb{color:#7A8296}
+  .theme-day .a-chip{color:#2563EB;border-color:#BFD3FF}
+  .theme-day .a-code{background:#FFFFFF}
+  .day-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:10px 16px 0;border:1px solid var(--line);background:var(--surface)}
+  .day-strip div{padding:7px 8px;border-right:1px solid var(--line);font:8.5px/1.2 var(--mono);color:#6D7486}
+  .day-strip div:last-child{border-right:0}
+  .day-strip b{display:block;font:700 12px/1 var(--mono);color:#161A24;margin-bottom:3px}
+  .day-strip .live{color:#0F8A63}
+  .theme-flip-ed{
+    --bg:#F3F3FB;--surface:#FFFFFF;--surface-2:#F8F7FF;--ink:#191B2C;--muted:#747A8F;
+    --line:#E5E4F1;--accent:#5B5BD6;--accent-2:#38BDF8;--accent-soft:#EEEDFF;
+    --green:#118A64;--green-soft:#E4F6EF;--code:#FFFFFF;--gutter:#B5B2C8;
+    --tok-comment:#9A96AD;--tok-key:#7C3AED;--tok-string:#0F8A63;--tok-fn:#4F46E5;--tok-num:#C2414B;--tok-punct:#6B7187;
+    --sb-ink:#191B2C;--nav-ink:#747A8F;
+  }
+  .theme-flip-ed .b-editor-head{background:#111827;color:#F3F6FF}
+  .theme-flip-ed .b-back,.theme-flip-ed .b-iconbtn{color:#C7D0E4}
+  .theme-flip-ed .b-editor-title b{color:#F3F6FF}
+  .theme-flip-ed .b-editor-title span{color:#4ADE9F}
+  .theme-flip-ed .b-tabs{background:#1F2937}
+  .theme-flip-ed .b-tab{color:#9AA6C4}
+  .theme-flip-ed .b-tab.active{background:#374151;color:#A5B4FF;box-shadow:none}
+  .theme-flip-ed .b-actions{background:#111827}
+  .theme-flip-ed .b-run{background:linear-gradient(135deg,#5B5BD6,#38BDF8);color:#06101F}
+  .theme-flip-ed .b-round{background:#1F2937;border-color:#374151;color:#A5B4FF;box-shadow:none}
+  .theme-flip-ed .b-foot{background:#111827;color:#8A93A6;margin-top:0;padding-top:7px}
+  @media (max-width:980px){
+    .hybrid-index{grid-template-columns:1fr 1fr}
+  }
+  @media (max-width:520px){
+    .hybrid-index{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="19" r="1.8" fill="currentColor"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M4.5 5.5A3.5 3.5 0 0 1 8 4h4v15H8a3.5 3.5 0 0 0-3.5 3zM19.5 5.5A3.5 3.5 0 0 0 16 4h-4v15h4a3.5 3.5 0 0 1 3.5 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m8.5 7-5 5 5 5M15.5 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5m6-6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 7 4.5 11.5 9 16M5 11.5h8.5a5.5 5.5 0 0 1 0 11H11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 7 4.5 4.5L15 16m4-4.5h-8.5a5.5 5.5 0 0 0 0 11H13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.8 12S6.2 6.2 12 6.2 21.2 12 21.2 12 17.8 17.8 12 17.8 2.8 12 2.8 12Z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 4H6.5A2.5 2.5 0 0 0 4 6.5v3A2.5 2.5 0 0 1 1.5 12 2.5 2.5 0 0 1 4 14.5v3A2.5 2.5 0 0 0 6.5 20H8M16 4h1.5A2.5 2.5 0 0 1 20 6.5v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5H16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h5l2 2h7a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m7 9 3 3-3 3M13 15h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 3.5 19h17z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9v4.5M12 16.5h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m8.3 12.2 2.4 2.4 5-5.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M3 9.5a13 13 0 0 1 18 0M6.5 13a8 8 0 0 1 11 0M10 16.5a3 3 0 0 1 4 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="19.2" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-signal" viewBox="0 0 24 24"><path d="M4 18v-3M9 18v-6M14 18V8M19 18V4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-battery" viewBox="0 0 24 24"><rect x="3" y="7" width="16" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M21 10.5v3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><rect x="5" y="9" width="11" height="6" rx="1" fill="currentColor"/></symbol>
+</svg>
+
+<header class="page-head">
+  <div class="eyebrow">MicroAuto / UI Directions / 2026.10</div>
+  <h1>八套界面方向，<br>你更想让 MicroAuto 像<em>哪一个</em>？</h1>
+  <p class="intro">
+    两轮共八套：前四套是独立气质，后四套是 <b>01 × 02</b> 的明暗与结构重组。每套都包含<b>首页</b>与<b>编辑页</b>，重点展示脚本列表、行内运行、运行状态、代码编辑与日志入口。
+    这是视觉方向稿，不是最终实现；选定后可以只改主题、布局与组件样式，不动运行时。
+  </p>
+  <nav class="jump" aria-label="方向索引">
+    <a href="#midnight"><span>01</span> Midnight IDE</a>
+    <a href="#deck"><span>02</span> Automation Deck</a>
+    <a href="#paper"><span>03</span> Paper &amp; Ink</a>
+    <a href="#control"><span>04</span> Control Room</a>
+    <a href="#hybrids"><span>1×2</span> 混合方案</a>
+    <a href="#compare"><span>→</span> 怎么选</a>
+  </nav>
+</header>
+
+<!-- ═══════════════════════════ 01 MIDNIGHT IDE ═══════════════════════════ -->
+<section class="concept" id="midnight">
+  <div class="concept-head">
+    <div class="concept-no">01</div>
+    <div>
+      <div class="concept-kicker">Dark / Dense / Developer-first</div>
+      <h2>Midnight IDE</h2>
+      <p class="tagline">给长期待在编辑器里的人，一间深夜工作室。</p>
+      <p class="concept-desc">
+        深色优先、等宽字体、低饱和的蓝灰层级，强调“运行中”和“代码”本身。首页更像一个轻量 IDE 的项目面板，编辑页则是一块完整的代码工作区。
+        适合已经熟悉脚本、终端和自动化工具的用户。
+      </p>
+      <div class="tags"><span class="tag">深色优先</span><span class="tag">高密度</span><span class="tag">开发者工具</span><span class="tag">低干扰</span></div>
+      <div class="concept-meta">
+        <div><div class="meta-label">Palette</div><div class="swatches"><i class="swatch" style="background:#0A0E14"></i><i class="swatch" style="background:#111823"></i><i class="swatch" style="background:#38BDF8"></i><i class="swatch" style="background:#34D399"></i></div></div>
+        <div><div class="meta-label">Type</div><div class="meta-value">系统无衬线 + Mono<br>11–30px</div></div>
+        <div><div class="meta-label">Density</div><div class="meta-value">紧凑<br>列表 58px</div></div>
+        <div><div class="meta-label">First focus</div><div class="meta-value">正在运行的脚本<br>与代码内容</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phones">
+    <div class="phone-shell">
+      <div class="phone-label"><span>HOME / 脚本</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-a">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="a-top">
+              <div class="a-brand"><span class="keycap">m</span>microauto<span style="color:#405066">/</span>scripts</div>
+              <div class="a-health"><span class="dot"></span>ACCESS OK</div>
+            </div>
+            <div class="a-title-row">
+              <div><div class="a-title">脚本</div><div class="a-sub">5 scripts · 2 scheduled</div></div>
+              <div class="a-ghost"><svg width="15" height="15"><use href="#i-plus"/></svg></div>
+            </div>
+            <div class="a-search"><svg><use href="#i-search"/></svg><span>搜索脚本、选择器或注释…</span><span class="a-kbd">⌘ K</span></div>
+            <div class="a-env"><span class="dot"></span><b>无障碍服务已开启</b><span class="sep">/</span>运行环境<span style="margin-left:auto;color:#4F6074">→</span></div>
+            <div class="a-section"><span>ALL SCRIPTS</span><span>UPDATED ↓</span></div>
+            <div class="a-list">
+              <div class="a-row running">
+                <div class="a-index">01</div>
+                <div><div class="a-name">示例：定时签到模板</div><div class="a-meta"><span style="color:#7DD3FC">RUNNING 00:12</span><span>·</span><span class="sched">08:00</span></div></div>
+                <div class="a-run"><span class="spinner"></span></div>
+              </div>
+              <div class="a-row">
+                <div class="a-index">02</div>
+                <div><div class="a-name">示例：常用工具函数</div><div class="a-meta"><span>15:56:06</span><span>·</span><span class="sched">手动</span></div></div>
+                <div class="a-run"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="a-row">
+                <div class="a-index">03</div>
+                <div><div class="a-name">示例：按文本点击</div><div class="a-meta"><span>15:56:06</span><span>·</span><span class="sched">08:30</span></div></div>
+                <div class="a-run"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="a-row">
+                <div class="a-index">04</div>
+                <div><div class="a-name">示例：滑动与等待</div><div class="a-meta"><span>15:56:06</span><span>·</span><span class="sched">手动</span></div></div>
+                <div class="a-run"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="a-row">
+                <div class="a-index">05</div>
+                <div><div class="a-name">示例：节点树</div><div class="a-meta"><span>15:56:06</span><span>·</span><span class="sched">手动</span></div></div>
+                <div class="a-run"><svg><use href="#i-play"/></svg></div>
+              </div>
+            </div>
+            <div class="a-console">
+              <div class="a-console-head"><span>OUTPUT</span><span>latest.log</span></div>
+              <div class="a-console-line"><span class="dim">09:41:07</span> <b>▶ 开始执行</b> 示例：定时签到模板</div>
+              <div class="a-console-line"><span class="dim">09:41:09</span> <span class="ok">✓</span> 找到控件 <b>text("签到")</b></div>
+              <div class="a-console-line"><span class="dim">09:41:10</span> 点击 (540, 1820)</div>
+              <div class="a-console-line"><span class="dim">09:41:11</span> 等待 2s <span class="dim">…</span></div>
+            </div>
+            <div class="a-runbar">
+              <span class="spinner"></span>
+              <div class="grow"><b>正在运行「示例：定时签到模板」</b><span>00:12 · 手动运行 · PID 2841</span></div>
+              <div class="a-mini"><svg><use href="#i-stop"/></svg></div>
+            </div>
+            <div class="a-nav">
+              <div class="item active"><svg><use href="#i-terminal"/></svg><span>脚本</span></div>
+              <div class="compose"><svg><use href="#i-plus"/></svg></div>
+              <div class="item"><svg><use href="#i-book"/></svg><span>教程</span></div>
+            </div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-shell">
+      <div class="phone-label"><span>EDITOR / 编辑</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-a">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="a-editor-head">
+              <div class="a-back"><svg><use href="#i-back"/></svg></div>
+              <div class="a-editor-title"><b>sign-in.js</b><span>示例：定时签到模板</span></div>
+              <div class="a-icon-btn on"><svg><use href="#i-check"/></svg></div>
+              <div class="a-icon-btn"><svg><use href="#i-more"/></svg></div>
+            </div>
+            <div class="a-tabs"><div class="a-tab active">CODE</div><div class="a-tab">LOG</div><div class="a-tab">API</div></div>
+            <div class="a-crumb"><span>~/scripts/sign-in.js</span><span class="a-chip">JS</span></div>
+            <div class="a-code">
+              <div class="code-line"><span class="ln">01</span><span class="tok-c">// 每日 08:00 自动签到</span></div>
+              <div class="code-line"><span class="ln">02</span><span><span class="tok-k">function</span> <span class="tok-f">waitAndClick</span>(label) {</span></div>
+              <div class="code-line"><span class="ln">03</span><span>  <span class="tok-k">var</span> node = <span class="tok-f">text</span>(label).<span class="tok-f">findOne</span>(<span class="tok-n">10000</span>);</span></div>
+              <div class="code-line"><span class="ln">04</span><span>  <span class="tok-k">if</span> (!node) {</span></div>
+              <div class="code-line"><span class="ln">05</span><span>    <span class="tok-f">log</span>(<span class="tok-s">"未找到: "</span> + label);</span></div>
+              <div class="code-line"><span class="ln">06</span><span>    <span class="tok-k">return</span> <span class="tok-n">false</span>;</span></div>
+              <div class="code-line"><span class="ln">07</span><span>  }</span></div>
+              <div class="code-line"><span class="ln">08</span><span>  node.<span class="tok-f">click</span>();</span></div>
+              <div class="code-line"><span class="ln">09</span><span>  <span class="tok-k">return</span> <span class="tok-n">true</span>;</span></div>
+              <div class="code-line"><span class="ln">10</span><span>}</span></div>
+              <div class="code-line"><span class="ln">11</span><span> </span></div>
+              <div class="code-line"><span class="ln">12</span><span><span class="tok-f">waitAndClick</span>(<span class="tok-s">"签到"</span>);</span></div>
+              <div class="code-line"><span class="ln">13</span><span><span class="tok-f">toast</span>(<span class="tok-s">"签到完成"</span>);</span></div>
+            </div>
+            <div class="a-actions">
+              <div class="a-btn-run"><svg><use href="#i-play"/></svg>RUN</div>
+              <div class="a-btn"><svg><use href="#i-stop"/></svg>STOP</div>
+              <div class="a-btn"><svg><use href="#i-eye"/></svg>DUMP</div>
+              <div class="a-btn"><svg><use href="#i-clock"/></svg>CRON</div>
+            </div>
+            <div class="a-foot"><span class="ok">● SAVED</span><span>Ln 4, Col 18</span><span>UTF-8 · JS · 13 LINES</span></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="concept-notes">
+    <div><div class="note-label">Why it works</div><div class="note-title">身份最锋利</div><p class="note-body">深色 + 等宽 + 低饱和层级，一眼就是“自动化工具”，不讨好所有人，但目标用户会觉得对味。</p></div>
+    <div><div class="note-label">Trade-off</div><div class="note-title">门槛也最高</div><p class="note-body">新用户可能觉得冷、硬；白天户外可读性和分享截图不如浅色方案；需要认真做浅色变体。</p></div>
+    <div><div class="note-label">Best for</div><div class="note-title">脚本重度用户</div><p class="note-body">已经习惯 VS Code / 终端的人，会自然理解顶部路径、CODE/LOG/API 和状态行。</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 02 AUTOMATION DECK ═══════════════════════════ -->
+<section class="concept" id="deck">
+  <div class="concept-head">
+    <div class="concept-no">02</div>
+    <div>
+      <div class="concept-kicker">Light / Soft / Status-first</div>
+      <h2>Automation Deck</h2>
+      <p class="tagline">把脚本当成一张张“自动化卡片”，而不是文件。</p>
+      <p class="concept-desc">
+        浅色、圆角、柔和阴影，用状态摘要和卡片降低理解成本。首页先告诉用户“有几个定时、哪个在跑、上次结果如何”，再进入脚本。
+        最适合第一次接触自动化、或者从 Tasker / 快捷指令迁移过来的用户。
+      </p>
+      <div class="tags"><span class="tag">浅色</span><span class="tag">卡片化</span><span class="tag">状态优先</span><span class="tag">低门槛</span></div>
+      <div class="concept-meta">
+        <div><div class="meta-label">Palette</div><div class="swatches"><i class="swatch" style="background:#F3F3FB"></i><i class="swatch" style="background:#FFFFFF"></i><i class="swatch" style="background:#5B5BD6"></i><i class="swatch" style="background:#118A64"></i></div></div>
+        <div><div class="meta-label">Type</div><div class="meta-value">系统无衬线 + Mono<br>9–27px</div></div>
+        <div><div class="meta-label">Density</div><div class="meta-value">舒适<br>卡片 64px</div></div>
+        <div><div class="meta-label">First focus</div><div class="meta-value">今天的定时任务<br>与运行状态</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phones">
+    <div class="phone-shell">
+      <div class="phone-label"><span>HOME / 自动化</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-b">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="b-top">
+              <div><div class="b-hello">星期三 · 10 月 21 日</div><div class="b-title">早上好</div></div>
+              <div class="b-avatar">A</div>
+            </div>
+            <div class="b-summary">
+              <div class="b-stat"><div class="b-stat-icon"><svg><use href="#i-clock"/></svg></div><div><b>2 个定时</b><span>下一个 08:30</span></div></div>
+              <div class="b-stat"><div class="b-stat-icon green"><svg><use href="#i-play"/></svg></div><div><b>1 个运行中</b><span>已运行 12 秒</span></div></div>
+            </div>
+            <div class="b-search"><svg><use href="#i-search"/></svg><span>搜索脚本</span><div class="filter"><svg><use href="#i-list"/></svg></div></div>
+            <div class="b-section"><b>我的自动化</b><span>5 个脚本</span></div>
+            <div class="b-list">
+              <div class="b-card running">
+                <div class="b-ico violet">签</div>
+                <div class="b-card-main">
+                  <div class="b-card-name">示例：定时签到模板</div>
+                  <div class="b-chips"><span class="b-chip green">运行中 00:12</span><span class="b-chip violet">每天 08:00</span></div>
+                  <div class="b-progress"><i></i></div>
+                </div>
+                <div class="b-play"><span class="spinner" style="width:13px;height:13px;border-color:rgba(91,91,214,.2);border-top-color:#5B5BD6"></span></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico blue">工</div>
+                <div class="b-card-main"><div class="b-card-name">示例：常用工具函数</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">上次成功</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico green">点</div>
+                <div class="b-card-main"><div class="b-card-name">示例：按文本点击</div><div class="b-chips"><span class="b-chip">每天 08:30</span><span class="b-chip green">昨天成功</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico amber">滑</div>
+                <div class="b-card-main"><div class="b-card-name">示例：滑动与等待</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">3 天前</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico blue">树</div>
+                <div class="b-card-main"><div class="b-card-name">示例：节点树</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">10 月 18 日</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+            </div>
+            <div class="b-status">
+              <span class="pulse"></span>
+              <div class="grow"><b>正在运行「示例：定时签到模板」</b><span>00:12 · 手动运行</span></div>
+              <div class="stop"><svg><use href="#i-stop"/></svg></div>
+            </div>
+            <div class="b-nav">
+              <div class="item active"><svg><use href="#i-code"/></svg><span>脚本</span></div>
+              <div class="b-fab"><svg><use href="#i-plus"/></svg></div>
+              <div class="item"><svg><use href="#i-book"/></svg><span>教程</span></div>
+            </div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-shell">
+      <div class="phone-label"><span>EDITOR / 编辑</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-b">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="b-editor-head">
+              <div class="b-back"><svg><use href="#i-back"/></svg></div>
+              <div class="b-editor-title"><b>示例：定时签到模板</b><span>已保存 · 15:57</span></div>
+              <div class="b-iconbtn"><svg><use href="#i-check"/></svg></div>
+              <div class="b-iconbtn"><svg><use href="#i-more"/></svg></div>
+            </div>
+            <div class="b-tabs"><div class="b-tab active">编辑</div><div class="b-tab">日志</div><div class="b-tab">API</div></div>
+            <div class="b-last"><svg><use href="#i-check-circle"/></svg><b>上次运行成功</b><span>5.1 秒 · 15:57</span><span class="link">查看日志</span></div>
+            <div class="b-code-card">
+              <div class="b-code-head"><span class="file"><i></i>sign-in.js</span><span>JavaScript · 13 行</span></div>
+              <div class="b-code">
+                <div class="code-line"><span class="ln">01</span><span class="tok-c">// 每日 08:00 自动签到</span></div>
+                <div class="code-line"><span class="ln">02</span><span><span class="tok-k">function</span> <span class="tok-f">waitAndClick</span>(label) {</span></div>
+                <div class="code-line"><span class="ln">03</span><span>  <span class="tok-k">var</span> node = <span class="tok-f">text</span>(label).<span class="tok-f">findOne</span>(<span class="tok-n">10000</span>);</span></div>
+                <div class="code-line"><span class="ln">04</span><span>  <span class="tok-k">if</span> (!node) {</span></div>
+                <div class="code-line"><span class="ln">05</span><span>    <span class="tok-f">log</span>(<span class="tok-s">"未找到: "</span> + label);</span></div>
+                <div class="code-line"><span class="ln">06</span><span>    <span class="tok-k">return</span> <span class="tok-n">false</span>;</span></div>
+                <div class="code-line"><span class="ln">07</span><span>  }</span></div>
+                <div class="code-line"><span class="ln">08</span><span>  node.<span class="tok-f">click</span>();</span></div>
+                <div class="code-line"><span class="ln">09</span><span>  <span class="tok-k">return</span> <span class="tok-n">true</span>;</span></div>
+                <div class="code-line"><span class="ln">10</span><span>}</span></div>
+                <div class="code-line"><span class="ln">11</span><span> </span></div>
+                <div class="code-line"><span class="ln">12</span><span><span class="tok-f">waitAndClick</span>(<span class="tok-s">"签到"</span>);</span></div>
+                <div class="code-line"><span class="ln">13</span><span><span class="tok-f">toast</span>(<span class="tok-s">"签到完成"</span>);</span></div>
+              </div>
+            </div>
+            <div class="b-actions">
+              <div class="b-run"><svg><use href="#i-play"/></svg>运行脚本</div>
+              <div class="b-round"><svg><use href="#i-stop"/></svg></div>
+              <div class="b-round"><svg><use href="#i-eye"/></svg></div>
+              <div class="b-round"><svg><use href="#i-clock"/></svg></div>
+            </div>
+            <div class="b-foot"><span>Ln 4, Col 18</span><span>UTF-8 · JavaScript</span></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="concept-notes">
+    <div><div class="note-label">Why it works</div><div class="note-title">最好卖的一版</div><p class="note-body">状态、定时、上次结果都在卡片上，新用户不用先理解“文件/日志/版本”这些概念。</p></div>
+    <div><div class="note-label">Trade-off</div><div class="note-title">容易变得像待办</div><p class="note-body">卡片和圆角会削弱“专业工具”的锋利感；脚本多了以后需要更克制的密度和分组。</p></div>
+    <div><div class="note-label">Best for</div><div class="note-title">默认方案</div><p class="note-body">适合作为主线：新用户友好，同时保留编辑页的专业度。深色可作为可选主题。</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 03 PAPER & INK ═══════════════════════════ -->
+<section class="concept" id="paper">
+  <div class="concept-head">
+    <div class="concept-no">03</div>
+    <div>
+      <div class="concept-kicker">Editorial / Calm / Typographic</div>
+      <h2>Paper &amp; Ink</h2>
+      <p class="tagline">像一本关于自动化的薄杂志，而不是一个控制面板。</p>
+      <p class="concept-desc">
+        纸白、墨黑、朱砂红，衬线标题与细规则线承担层级。首页是目录，编辑页是稿纸；没有卡片和阴影，靠字号、留白和线条建立秩序。
+        适合把 MicroAuto 当作长期写作/整理脚本的人。
+      </p>
+      <div class="tags"><span class="tag">纸感</span><span class="tag">编辑风</span><span class="tag">高对比</span><span class="tag">安静</span></div>
+      <div class="concept-meta">
+        <div><div class="meta-label">Palette</div><div class="swatches"><i class="swatch" style="background:#F7F4EC"></i><i class="swatch" style="background:#1B1A17"></i><i class="swatch" style="background:#B23A1A"></i><i class="swatch" style="background:#2F6B4F"></i></div></div>
+        <div><div class="meta-label">Type</div><div class="meta-value">宋体标题 + 系统正文<br>8.5–44px</div></div>
+        <div><div class="meta-label">Density</div><div class="meta-value">疏朗<br>目录行 48px</div></div>
+        <div><div class="meta-label">First focus</div><div class="meta-value">刊头与脚本目录<br>运行状态用红点</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phones">
+    <div class="phone-shell">
+      <div class="phone-label"><span>HOME / 目录</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-c">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="c-top"><div class="c-wordmark">MICROAUTO</div><div class="c-date">2026.10.21 / WED</div></div>
+            <div class="c-masthead">脚本</div>
+            <div class="c-deck">五个正在使用的自动化。<br>两个会在明天早上替你醒来。</div>
+            <div class="c-rule"></div>
+            <div class="c-search"><svg><use href="#i-search"/></svg><span>搜索脚本…</span><span class="hint">5 ITEMS</span></div>
+            <div class="c-list">
+              <div class="c-row running">
+                <div class="c-no">01</div>
+                <div><div class="c-name">示例：定时签到模板<span class="c-running"><i></i>00:12</span></div><div class="c-meta">每天 08:00 · 手动触发 · 运行中</div></div>
+                <div class="c-run">停止</div>
+              </div>
+              <div class="c-row">
+                <div class="c-no">02</div>
+                <div><div class="c-name">示例：常用工具函数</div><div class="c-meta">10 月 21 日 15:56 · 上次成功 5.1s</div></div>
+                <div class="c-run">运行</div>
+              </div>
+              <div class="c-row">
+                <div class="c-no">03</div>
+                <div><div class="c-name">示例：按文本点击</div><div class="c-meta">每天 08:30 · 昨天成功</div></div>
+                <div class="c-run">运行</div>
+              </div>
+              <div class="c-row">
+                <div class="c-no">04</div>
+                <div><div class="c-name">示例：滑动与等待</div><div class="c-meta">手动 · 3 天前</div></div>
+                <div class="c-run">运行</div>
+              </div>
+              <div class="c-row">
+                <div class="c-no">05</div>
+                <div><div class="c-name">示例：节点树</div><div class="c-meta">手动 · 10 月 18 日</div></div>
+                <div class="c-run">运行</div>
+              </div>
+            </div>
+            <div class="c-note"><span>无障碍 · 已开启</span><span>精确闹钟 · 已授权</span><span>v0.13</span></div>
+            <div class="c-nav"><div class="item active">脚本</div><div class="item new">+ 新建</div><div class="item">教程</div></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-shell">
+      <div class="phone-label"><span>EDITOR / 稿纸</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-c">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="c-editor-head">
+              <div class="c-back"><svg><use href="#i-back"/></svg></div>
+              <div class="c-editor-title">示例：定时签到模板</div>
+              <div class="c-save">保存</div>
+            </div>
+            <div class="c-tabs"><div class="c-tab active">编辑</div><div class="c-tab">日志</div><div class="c-tab">API</div></div>
+            <div class="c-crumb"><span>SIGN-IN.JS</span><span>13 LINES · UTF-8</span></div>
+            <div class="c-code">
+              <div class="code-line"><span class="ln">01</span><span class="tok-c">// 每日 08:00 自动签到</span></div>
+              <div class="code-line"><span class="ln">02</span><span><span class="tok-k">function</span> <span class="tok-f">waitAndClick</span>(label) {</span></div>
+              <div class="code-line"><span class="ln">03</span><span>  <span class="tok-k">var</span> node = <span class="tok-f">text</span>(label).<span class="tok-f">findOne</span>(<span class="tok-n">10000</span>);</span></div>
+              <div class="code-line"><span class="ln">04</span><span>  <span class="tok-k">if</span> (!node) {</span></div>
+              <div class="code-line"><span class="ln">05</span><span>    <span class="tok-f">log</span>(<span class="tok-s">"未找到: "</span> + label);</span></div>
+              <div class="code-line"><span class="ln">06</span><span>    <span class="tok-k">return</span> <span class="tok-n">false</span>;</span></div>
+              <div class="code-line"><span class="ln">07</span><span>  }</span></div>
+              <div class="code-line"><span class="ln">08</span><span>  node.<span class="tok-f">click</span>();</span></div>
+              <div class="code-line"><span class="ln">09</span><span>  <span class="tok-k">return</span> <span class="tok-n">true</span>;</span></div>
+              <div class="code-line"><span class="ln">10</span><span>}</span></div>
+              <div class="code-line"><span class="ln">11</span><span> </span></div>
+              <div class="code-line"><span class="ln">12</span><span><span class="tok-f">waitAndClick</span>(<span class="tok-s">"签到"</span>);</span></div>
+              <div class="code-line"><span class="ln">13</span><span><span class="tok-f">toast</span>(<span class="tok-s">"签到完成"</span>);</span></div>
+            </div>
+            <div class="c-actions">
+              <div class="c-btn-run"><svg><use href="#i-play"/></svg>运行</div>
+              <div class="c-btn"><svg><use href="#i-stop"/></svg>停止</div>
+              <div class="c-btn"><svg><use href="#i-eye"/></svg>看界面</div>
+              <div class="c-btn"><svg><use href="#i-clock"/></svg>定时</div>
+            </div>
+            <div class="c-foot"><span>已保存 · 15:57</span><span>Ln 4, Col 18</span><span>JS</span></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="concept-notes">
+    <div><div class="note-label">Why it works</div><div class="note-title">最耐看</div><p class="note-body">去掉卡片和阴影后，信息靠排版建立层级，长期使用不容易腻；截图分享也很有辨识度。</p></div>
+    <div><div class="note-label">Trade-off</div><div class="note-title">效率感偏弱</div><p class="note-body">目录式列表在脚本很多时不如紧凑列表高效；宋体在 Android 上的字体回退需要真机确认。</p></div>
+    <div><div class="note-label">Best for</div><div class="note-title">写作型用户</div><p class="note-body">把脚本当“作品”而非“任务”的人，会喜欢这种安静、克制的阅读感。</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 04 CONTROL ROOM ═══════════════════════════ -->
+<section class="concept" id="control">
+  <div class="concept-head">
+    <div class="concept-no">04</div>
+    <div>
+      <div class="concept-kicker">Industrial / Utilitarian / High-contrast</div>
+      <h2>Control Room</h2>
+      <p class="tagline">像一台贴在墙上的自动化控制台，所有状态都亮着灯。</p>
+      <p class="concept-desc">
+        暖灰、墨黑、安全橙，直角边框、等宽标签、LED 状态点。首页是队列，编辑页是脚本终端；不追求柔和，追求“我现在就知道系统在做什么”。
+        适合运维、测试和重度自动化用户。
+      </p>
+      <div class="tags"><span class="tag">工业感</span><span class="tag">高对比</span><span class="tag">状态外显</span><span class="tag">直角</span></div>
+      <div class="concept-meta">
+        <div><div class="meta-label">Palette</div><div class="swatches"><i class="swatch" style="background:#E9E6DD"></i><i class="swatch" style="background:#111111"></i><i class="swatch" style="background:#FF5C00"></i><i class="swatch" style="background:#1F8A4C"></i></div></div>
+        <div><div class="meta-label">Type</div><div class="meta-value">系统无衬线 + Mono<br>7–25px</div></div>
+        <div><div class="meta-label">Density</div><div class="meta-value">极紧凑<br>队列表格 46px</div></div>
+        <div><div class="meta-label">First focus</div><div class="meta-value">系统状态条<br>与运行队列</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phones">
+    <div class="phone-shell">
+      <div class="phone-label"><span>HOME / 队列</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-d">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="d-top"><b>MICROAUTO // CONTROL</b><span class="d-sys"><i></i>SYS OK</span></div>
+            <div class="d-strip">
+              <div class="d-cell">A11Y<b class="on">ON</b></div>
+              <div class="d-cell">CRON<b>02</b></div>
+              <div class="d-cell">RUN<b class="warn">01</b></div>
+            </div>
+            <div class="d-title-row"><div class="d-title">脚本队列</div><div class="d-count">05 ITEMS / 2 SCHEDULED</div></div>
+            <div class="d-search"><svg><use href="#i-search"/></svg><span>FIND SCRIPT</span><span class="kbd">/</span></div>
+            <div class="d-list">
+              <div class="d-row running">
+                <div class="d-id">01</div>
+                <div><div class="d-name">示例：定时签到模板</div><div class="d-meta"><span class="state">● RUN 00:12</span><span>CRON 08:00</span></div></div>
+                <div class="d-btn"><svg><use href="#i-stop"/></svg></div>
+              </div>
+              <div class="d-row">
+                <div class="d-id">02</div>
+                <div><div class="d-name">示例：常用工具函数</div><div class="d-meta"><span class="state">● READY</span><span>LAST OK 5.1s</span></div></div>
+                <div class="d-btn"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="d-row">
+                <div class="d-id">03</div>
+                <div><div class="d-name">示例：按文本点击</div><div class="d-meta"><span class="state">● READY</span><span>CRON 08:30</span></div></div>
+                <div class="d-btn"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="d-row">
+                <div class="d-id">04</div>
+                <div><div class="d-name">示例：滑动与等待</div><div class="d-meta"><span class="state">● READY</span><span>LAST 3D</span></div></div>
+                <div class="d-btn"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="d-row">
+                <div class="d-id">05</div>
+                <div><div class="d-name">示例：节点树</div><div class="d-meta"><span class="state">● READY</span><span>LAST 3D</span></div></div>
+                <div class="d-btn"><svg><use href="#i-play"/></svg></div>
+              </div>
+            </div>
+            <div class="d-events">
+              <div class="d-events-head"><span>EVENT LOG</span><b>● LIVE</b></div>
+              <div class="d-event"><span>09:41:07</span><b>RUN START #01 sign-in.js</b></div>
+              <div class="d-event"><span>09:40:58</span><b>A11Y CONNECTED · service bound</b></div>
+              <div class="d-event"><span>09:40:31</span><b>CRON REGISTERED · 2 jobs</b></div>
+              <div class="d-event"><span>09:39:12</span><b>SCRIPT SAVED · sign-in.js</b></div>
+              <div class="d-event"><span>09:38:44</span><b>LOG CLEARED · manual</b></div>
+              <div class="d-event"><span>09:38:02</span><b>RUN OK #03 · 5.1s</b></div>
+              <div class="d-event"><span>09:37:35</span><b>CRON SKIP · screen locked</b></div>
+              <div class="d-event"><span>09:36:58</span><b>A11Y NODE CACHE · 2,000 nodes</b></div>
+              <div class="d-event"><span>09:36:11</span><b>SCRIPT OPEN · sign-in.js</b></div>
+              <div class="d-event"><span>09:35:42</span><b>RUN OK #02 · 4.8s</b></div>
+              <div class="d-event"><span>09:34:20</span><b>BACKUP DONE · 1.2 MB</b></div>
+              <div class="d-event"><span>09:33:05</span><b>APP FOREGROUND · manual</b></div>
+            </div>
+            <div class="d-statusbar"><div class="left"><i></i><b>RUNNING · 定时签到模板 · 00:12</b></div><span class="stop">STOP</span></div>
+            <div class="d-nav"><div class="item active">LIBRARY</div><div class="item">NEW</div><div class="item">GUIDE</div></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-shell">
+      <div class="phone-label"><span>EDITOR / 终端</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-d">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="d-editor-top">
+              <div class="d-back"><svg><use href="#i-back"/></svg></div>
+              <div class="d-editor-title"><b>SCRIPT.JS // 13 LINES</b><span>示例：定时签到模板</span></div>
+              <div class="d-save"><svg><use href="#i-check"/></svg></div>
+            </div>
+            <div class="d-tabs"><div class="d-tab active">CODE</div><div class="d-tab">LOG</div><div class="d-tab">API</div></div>
+            <div class="d-meta-strip">
+              <div class="d-meta-cell">STATE<b class="ok">READY</b></div>
+              <div class="d-meta-cell">LAST RUN<b>SUCCESS 5.1s</b></div>
+            </div>
+            <div class="d-code">
+              <div class="code-line"><span class="ln">01</span><span class="tok-c">// 每日 08:00 自动签到</span></div>
+              <div class="code-line"><span class="ln">02</span><span><span class="tok-k">function</span> <span class="tok-f">waitAndClick</span>(label) {</span></div>
+              <div class="code-line"><span class="ln">03</span><span>  <span class="tok-k">var</span> node = <span class="tok-f">text</span>(label).<span class="tok-f">findOne</span>(<span class="tok-n">10000</span>);</span></div>
+              <div class="code-line"><span class="ln">04</span><span>  <span class="tok-k">if</span> (!node) {</span></div>
+              <div class="code-line"><span class="ln">05</span><span>    <span class="tok-f">log</span>(<span class="tok-s">"未找到: "</span> + label);</span></div>
+              <div class="code-line"><span class="ln">06</span><span>    <span class="tok-k">return</span> <span class="tok-n">false</span>;</span></div>
+              <div class="code-line"><span class="ln">07</span><span>  }</span></div>
+              <div class="code-line"><span class="ln">08</span><span>  node.<span class="tok-f">click</span>();</span></div>
+              <div class="code-line"><span class="ln">09</span><span>  <span class="tok-k">return</span> <span class="tok-n">true</span>;</span></div>
+              <div class="code-line"><span class="ln">10</span><span>}</span></div>
+              <div class="code-line"><span class="ln">11</span><span> </span></div>
+              <div class="code-line"><span class="ln">12</span><span><span class="tok-f">waitAndClick</span>(<span class="tok-s">"签到"</span>);</span></div>
+              <div class="code-line"><span class="ln">13</span><span><span class="tok-f">toast</span>(<span class="tok-s">"签到完成"</span>);</span></div>
+            </div>
+            <div class="d-code-foot"><span>UTF-8 / JS</span><span>LN 4, COL 18</span><span>SAVED</span></div>
+            <div class="d-actions">
+              <div class="d-run"><svg><use href="#i-play"/></svg>RUN SCRIPT</div>
+              <div class="d-sq"><svg><use href="#i-stop"/></svg></div>
+              <div class="d-sq"><svg><use href="#i-eye"/></svg></div>
+              <div class="d-sq"><svg><use href="#i-clock"/></svg></div>
+            </div>
+            <div class="d-foot"><span>CHANNEL: MANUAL</span><span>PID 2841</span><span>v0.13</span></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="concept-notes">
+    <div><div class="note-label">Why it works</div><div class="note-title">状态最清楚</div><p class="note-body">A11Y / CRON / RUN 三个格子把系统状态变成仪表盘；队列式列表在脚本多时扫描效率最高。</p></div>
+    <div><div class="note-label">Trade-off</div><div class="note-title">有点“凶”</div><p class="note-body">高对比和直角会劝退普通用户；橙色大面积使用需要克制，否则会像警告页。</p></div>
+    <div><div class="note-label">Best for</div><div class="note-title">重度/团队场景</div><p class="note-body">多脚本、定时任务、需要快速判断“哪个在跑、哪个失败”的用户。</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ ROUND 02 · 1 × 2 ═══════════════════════════ -->
+<section class="concept round-two-intro" id="hybrids">
+  <div class="concept-head">
+    <div class="concept-no">1 × 2</div>
+    <div>
+      <div class="concept-kicker">Round 02 / Hybrid Directions</div>
+      <h2>把 Midnight IDE 和 Automation Deck 混在一起</h2>
+      <p class="tagline">同一套骨架，四种明暗分工。</p>
+      <p class="concept-desc">
+        保留 02 的状态卡、运行条和低门槛信息架构，同时借用 01 的深色代码表面、等宽标签和紧凑密度。
+        下面四套不是简单换色，而是把“什么时候深、什么时候浅、哪里像 IDE、哪里像卡片”拆开重组。
+      </p>
+      <div class="hybrid-index">
+        <a href="#night-deck"><span class="n">H1</span><span class="t">Night Deck</span><span class="d">全深色 · Deck 卡片结构</span></a>
+        <a href="#split-shift"><span class="n">H2</span><span class="t">Split Shift</span><span class="d">浅色首页 · 深色编辑</span></a>
+        <a href="#daylight"><span class="n">H3</span><span class="t">Studio Daylight</span><span class="d">浅色 IDE · 深色命令栏</span></a>
+        <a href="#flip-deck"><span class="n">H4</span><span class="t">Flip Deck</span><span class="d">深色监控 · 浅色写作</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ H1 NIGHT DECK ═══════════════════════════ -->
+<section class="concept" id="night-deck">
+  <div class="concept-head">
+    <div class="concept-no">H1</div>
+    <div>
+      <div class="concept-kicker">All Dark / Deck Structure / Soft Contrast</div>
+      <h2>Night Deck</h2>
+      <p class="tagline">Automation Deck 的骨架，换成 Midnight IDE 的夜间皮肤。</p>
+      <p class="concept-desc">
+        状态摘要、脚本卡片、运行条和底部导航都保留 02 的亲和力，但底色、卡片和代码区换成 01 的深海军蓝。
+        比原版 Midnight 更柔和，比原版 Deck 更适合夜间和长时间使用。
+      </p>
+      <div class="tags"><span class="tag">全深色</span><span class="tag">卡片保留</span><span class="tag">状态优先</span><span class="tag">低眩光</span></div>
+      <div class="concept-meta">
+        <div><div class="meta-label">Palette</div><div class="swatches"><i class="swatch" style="background:#0B1020"></i><i class="swatch" style="background:#141B2E"></i><i class="swatch" style="background:#6C7CFF"></i><i class="swatch" style="background:#38BDF8"></i></div></div>
+        <div><div class="meta-label">Structure</div><div class="meta-value">Deck 卡片 + 状态条<br>圆角 14–16px</div></div>
+        <div><div class="meta-label">Density</div><div class="meta-value">舒适<br>卡片 64px</div></div>
+        <div><div class="meta-label">First focus</div><div class="meta-value">运行中的卡片<br>与状态摘要</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phones">
+    <div class="phone-shell">
+      <div class="phone-label"><span>HOME / 夜间总览</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-nd">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="b-top">
+              <div><div class="b-hello">星期三 · 10 月 21 日</div><div class="b-title">晚上好</div></div>
+              <div class="b-avatar">A</div>
+            </div>
+            <div class="b-summary">
+              <div class="b-stat"><div class="b-stat-icon"><svg><use href="#i-clock"/></svg></div><div><b>2 个定时</b><span>下一个 08:30</span></div></div>
+              <div class="b-stat"><div class="b-stat-icon green"><svg><use href="#i-play"/></svg></div><div><b>1 个运行中</b><span>已运行 12 秒</span></div></div>
+            </div>
+            <div class="b-search"><svg><use href="#i-search"/></svg><span>搜索脚本</span><div class="filter"><svg><use href="#i-list"/></svg></div></div>
+            <div class="b-section"><b>我的自动化</b><span>5 个脚本</span></div>
+            <div class="b-list">
+              <div class="b-card running">
+                <div class="b-ico violet">签</div>
+                <div class="b-card-main">
+                  <div class="b-card-name">示例：定时签到模板</div>
+                  <div class="b-chips"><span class="b-chip green">运行中 00:12</span><span class="b-chip violet">每天 08:00</span></div>
+                  <div class="b-progress"><i></i></div>
+                </div>
+                <div class="b-play"><span class="spinner" style="width:13px;height:13px;border-color:rgba(108,124,255,.2);border-top-color:#6C7CFF"></span></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico blue">工</div>
+                <div class="b-card-main"><div class="b-card-name">示例：常用工具函数</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">上次成功</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico green">点</div>
+                <div class="b-card-main"><div class="b-card-name">示例：按文本点击</div><div class="b-chips"><span class="b-chip">每天 08:30</span><span class="b-chip green">昨天成功</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico amber">滑</div>
+                <div class="b-card-main"><div class="b-card-name">示例：滑动与等待</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">3 天前</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico blue">树</div>
+                <div class="b-card-main"><div class="b-card-name">示例：节点树</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">10 月 18 日</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+            </div>
+            <div class="b-status">
+              <span class="pulse"></span>
+              <div class="grow"><b>正在运行「示例：定时签到模板」</b><span>00:12 · 手动运行</span></div>
+              <div class="stop"><svg><use href="#i-stop"/></svg></div>
+            </div>
+            <div class="b-nav">
+              <div class="item active"><svg><use href="#i-code"/></svg><span>脚本</span></div>
+              <div class="b-fab"><svg><use href="#i-plus"/></svg></div>
+              <div class="item"><svg><use href="#i-book"/></svg><span>教程</span></div>
+            </div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-shell">
+      <div class="phone-label"><span>EDITOR / 夜间编辑</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-nd">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="b-editor-head">
+              <div class="b-back"><svg><use href="#i-back"/></svg></div>
+              <div class="b-editor-title"><b>示例：定时签到模板</b><span>已保存 · 15:57</span></div>
+              <div class="b-iconbtn"><svg><use href="#i-check"/></svg></div>
+              <div class="b-iconbtn"><svg><use href="#i-more"/></svg></div>
+            </div>
+            <div class="b-tabs"><div class="b-tab active">编辑</div><div class="b-tab">日志</div><div class="b-tab">API</div></div>
+            <div class="b-last"><svg><use href="#i-check-circle"/></svg><b>上次运行成功</b><span>5.1 秒 · 15:57</span><span class="link">查看日志</span></div>
+            <div class="b-code-card">
+              <div class="b-code-head"><span class="file"><i></i>sign-in.js</span><span>JavaScript · 13 行</span></div>
+              <div class="b-code">
+                <div class="code-line"><span class="ln">01</span><span class="tok-c">// 每日 08:00 自动签到</span></div>
+                <div class="code-line"><span class="ln">02</span><span><span class="tok-k">function</span> <span class="tok-f">waitAndClick</span>(label) {</span></div>
+                <div class="code-line"><span class="ln">03</span><span>  <span class="tok-k">var</span> node = <span class="tok-f">text</span>(label).<span class="tok-f">findOne</span>(<span class="tok-n">10000</span>);</span></div>
+                <div class="code-line"><span class="ln">04</span><span>  <span class="tok-k">if</span> (!node) {</span></div>
+                <div class="code-line"><span class="ln">05</span><span>    <span class="tok-f">log</span>(<span class="tok-s">"未找到: "</span> + label);</span></div>
+                <div class="code-line"><span class="ln">06</span><span>    <span class="tok-k">return</span> <span class="tok-n">false</span>;</span></div>
+                <div class="code-line"><span class="ln">07</span><span>  }</span></div>
+                <div class="code-line"><span class="ln">08</span><span>  node.<span class="tok-f">click</span>();</span></div>
+                <div class="code-line"><span class="ln">09</span><span>  <span class="tok-k">return</span> <span class="tok-n">true</span>;</span></div>
+                <div class="code-line"><span class="ln">10</span><span>}</span></div>
+                <div class="code-line"><span class="ln">11</span><span> </span></div>
+                <div class="code-line"><span class="ln">12</span><span><span class="tok-f">waitAndClick</span>(<span class="tok-s">"签到"</span>);</span></div>
+                <div class="code-line"><span class="ln">13</span><span><span class="tok-f">toast</span>(<span class="tok-s">"签到完成"</span>);</span></div>
+              </div>
+            </div>
+            <div class="b-actions">
+              <div class="b-run"><svg><use href="#i-play"/></svg>运行脚本</div>
+              <div class="b-round"><svg><use href="#i-stop"/></svg></div>
+              <div class="b-round"><svg><use href="#i-eye"/></svg></div>
+              <div class="b-round"><svg><use href="#i-clock"/></svg></div>
+            </div>
+            <div class="b-foot"><span>Ln 4, Col 18</span><span>UTF-8 · JavaScript</span></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="concept-notes">
+    <div><div class="note-label">Why it works</div><div class="note-title">最顺滑的深色化</div><p class="note-body">不用重新学信息架构，只是把 02 的卡片和状态条换成 01 的夜间材质；老用户和新用户都能接受。</p></div>
+    <div><div class="note-label">Trade-off</div><div class="note-title">少了一点锋利</div><p class="note-body">圆角和柔和卡片会削弱 IDE 的专业感；如果目标是“硬核工具”，它不如原版 Midnight 直接。</p></div>
+    <div><div class="note-label">Best for</div><div class="note-title">夜间默认</div><p class="note-body">适合把深色作为主外观、又不想牺牲 Deck 的任务感和状态闭环。</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ H2 SPLIT SHIFT ═══════════════════════════ -->
+<section class="concept" id="split-shift">
+  <div class="concept-head">
+    <div class="concept-no">H2</div>
+    <div>
+      <div class="concept-kicker">Light Library / Dark Focus</div>
+      <h2>Split Shift</h2>
+      <p class="tagline">白天在浅色书架里挑任务，进编辑页就切到深色专注。</p>
+      <p class="concept-desc">
+        首页保留 02 的浅色卡片、状态摘要和运行条；编辑页直接采用 01 的深色代码工作区。两套表情通过同一条靛蓝强调色和圆角尺度连起来。
+        这是最像“真实产品”的组合：浏览要轻，写代码要沉。
+      </p>
+      <div class="tags"><span class="tag">浅色首页</span><span class="tag">深色编辑</span><span class="tag">日/夜分工</span><span class="tag">最实用</span></div>
+      <div class="concept-meta">
+        <div><div class="meta-label">Palette</div><div class="swatches"><i class="swatch" style="background:#F3F3FB"></i><i class="swatch" style="background:#0B1020"></i><i class="swatch" style="background:#5B5BD6"></i><i class="swatch" style="background:#38BDF8"></i></div></div>
+        <div><div class="meta-label">Structure</div><div class="meta-value">Deck 首页 + IDE 编辑<br>共享靛蓝强调</div></div>
+        <div><div class="meta-label">Density</div><div class="meta-value">首页舒适<br>编辑紧凑</div></div>
+        <div><div class="meta-label">First focus</div><div class="meta-value">首页任务<br>编辑代码</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phones">
+    <div class="phone-shell">
+      <div class="phone-label"><span>HOME / 浅色书架</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-b">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="b-top">
+              <div><div class="b-hello">LIGHT LIBRARY · 星期三</div><div class="b-title">早上好</div></div>
+              <div class="b-avatar">A</div>
+            </div>
+            <div class="b-summary">
+              <div class="b-stat"><div class="b-stat-icon"><svg><use href="#i-clock"/></svg></div><div><b>2 个定时</b><span>下一个 08:30</span></div></div>
+              <div class="b-stat"><div class="b-stat-icon green"><svg><use href="#i-play"/></svg></div><div><b>1 个运行中</b><span>已运行 12 秒</span></div></div>
+            </div>
+            <div class="b-search"><svg><use href="#i-search"/></svg><span>搜索脚本</span><div class="filter"><svg><use href="#i-list"/></svg></div></div>
+            <div class="b-section"><b>我的自动化</b><span>5 个脚本</span></div>
+            <div class="b-list">
+              <div class="b-card running">
+                <div class="b-ico violet">签</div>
+                <div class="b-card-main"><div class="b-card-name">示例：定时签到模板</div><div class="b-chips"><span class="b-chip green">运行中 00:12</span><span class="b-chip violet">每天 08:00</span></div><div class="b-progress"><i></i></div></div>
+                <div class="b-play"><span class="spinner" style="width:13px;height:13px;border-color:rgba(91,91,214,.2);border-top-color:#5B5BD6"></span></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico blue">工</div>
+                <div class="b-card-main"><div class="b-card-name">示例：常用工具函数</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">上次成功</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico green">点</div>
+                <div class="b-card-main"><div class="b-card-name">示例：按文本点击</div><div class="b-chips"><span class="b-chip">每天 08:30</span><span class="b-chip green">昨天成功</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico amber">滑</div>
+                <div class="b-card-main"><div class="b-card-name">示例：滑动与等待</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">3 天前</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico blue">树</div>
+                <div class="b-card-main"><div class="b-card-name">示例：节点树</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">10 月 18 日</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+            </div>
+            <div class="b-status">
+              <span class="pulse"></span>
+              <div class="grow"><b>正在运行「示例：定时签到模板」</b><span>00:12 · 手动运行</span></div>
+              <div class="stop"><svg><use href="#i-stop"/></svg></div>
+            </div>
+            <div class="b-nav">
+              <div class="item active"><svg><use href="#i-code"/></svg><span>脚本</span></div>
+              <div class="b-fab"><svg><use href="#i-plus"/></svg></div>
+              <div class="item"><svg><use href="#i-book"/></svg><span>教程</span></div>
+            </div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-shell">
+      <div class="phone-label"><span>EDITOR / 深色专注</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-split-ed">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="a-editor-head">
+              <div class="a-back"><svg><use href="#i-back"/></svg></div>
+              <div class="a-editor-title"><b>sign-in.js</b><span>DARK FOCUS · 已保存 15:57</span></div>
+              <div class="a-icon-btn on"><svg><use href="#i-check"/></svg></div>
+              <div class="a-icon-btn"><svg><use href="#i-more"/></svg></div>
+            </div>
+            <div class="a-tabs"><div class="a-tab active">CODE</div><div class="a-tab">LOG</div><div class="a-tab">API</div></div>
+            <div class="a-crumb"><span>~/scripts/sign-in.js</span><span class="a-chip">JS</span></div>
+            <div class="a-code">
+              <div class="code-line"><span class="ln">01</span><span class="tok-c">// 每日 08:00 自动签到</span></div>
+              <div class="code-line"><span class="ln">02</span><span><span class="tok-k">function</span> <span class="tok-f">waitAndClick</span>(label) {</span></div>
+              <div class="code-line"><span class="ln">03</span><span>  <span class="tok-k">var</span> node = <span class="tok-f">text</span>(label).<span class="tok-f">findOne</span>(<span class="tok-n">10000</span>);</span></div>
+              <div class="code-line"><span class="ln">04</span><span>  <span class="tok-k">if</span> (!node) {</span></div>
+              <div class="code-line"><span class="ln">05</span><span>    <span class="tok-f">log</span>(<span class="tok-s">"未找到: "</span> + label);</span></div>
+              <div class="code-line"><span class="ln">06</span><span>    <span class="tok-k">return</span> <span class="tok-n">false</span>;</span></div>
+              <div class="code-line"><span class="ln">07</span><span>  }</span></div>
+              <div class="code-line"><span class="ln">08</span><span>  node.<span class="tok-f">click</span>();</span></div>
+              <div class="code-line"><span class="ln">09</span><span>  <span class="tok-k">return</span> <span class="tok-n">true</span>;</span></div>
+              <div class="code-line"><span class="ln">10</span><span>}</span></div>
+              <div class="code-line"><span class="ln">11</span><span> </span></div>
+              <div class="code-line"><span class="ln">12</span><span><span class="tok-f">waitAndClick</span>(<span class="tok-s">"签到"</span>);</span></div>
+              <div class="code-line"><span class="ln">13</span><span><span class="tok-f">toast</span>(<span class="tok-s">"签到完成"</span>);</span></div>
+            </div>
+            <div class="a-actions">
+              <div class="a-btn-run"><svg><use href="#i-play"/></svg>RUN</div>
+              <div class="a-btn"><svg><use href="#i-stop"/></svg>STOP</div>
+              <div class="a-btn"><svg><use href="#i-eye"/></svg>DUMP</div>
+              <div class="a-btn"><svg><use href="#i-clock"/></svg>CRON</div>
+            </div>
+            <div class="a-foot"><span class="ok">● SAVED</span><span>Ln 4, Col 18</span><span>UTF-8 · JS · 13 LINES</span></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="concept-notes">
+    <div><div class="note-label">Why it works</div><div class="note-title">最像真实产品</div><p class="note-body">浅色首页负责“找任务、看状态”，深色编辑页负责“沉浸写代码”；两边的强调色一致，不会像两个 App。</p></div>
+    <div><div class="note-label">Trade-off</div><div class="note-title">切换时会有跳变</div><p class="note-body">从浅色列表进入深色编辑，亮度反差明显；需要在转场或编辑页顶部做一点过渡提示。</p></div>
+    <div><div class="note-label">Best for</div><div class="note-title">首选默认</div><p class="note-body">兼顾新用户和脚本用户；如果只选一个混合方案，我建议从它开始落地。</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ H3 STUDIO DAYLIGHT ═══════════════════════════ -->
+<section class="concept" id="daylight">
+  <div class="concept-head">
+    <div class="concept-no">H3</div>
+    <div>
+      <div class="concept-kicker">Light IDE / Dark Command Bar / Compact</div>
+      <h2>Studio Daylight</h2>
+      <p class="tagline">把 Midnight IDE 搬到白天，但保留一条深色命令栏。</p>
+      <p class="concept-desc">
+        首页采用 01 的紧凑行、等宽标签和索引感，但底色换成纸白；顶部加一条 02 的状态摘要，底部运行条和编辑页命令栏保持深色。
+        适合白天使用、又不想放弃 IDE 密度的用户。
+      </p>
+      <div class="tags"><span class="tag">浅色 IDE</span><span class="tag">深色命令栏</span><span class="tag">紧凑</span><span class="tag">专业但不冷</span></div>
+      <div class="concept-meta">
+        <div><div class="meta-label">Palette</div><div class="swatches"><i class="swatch" style="background:#F7F8FC"></i><i class="swatch" style="background:#FFFFFF"></i><i class="swatch" style="background:#2563EB"></i><i class="swatch" style="background:#111827"></i></div></div>
+        <div><div class="meta-label">Structure</div><div class="meta-value">IDE 行 + 状态摘要<br>深色命令栏</div></div>
+        <div><div class="meta-label">Density</div><div class="meta-value">紧凑<br>列表 58px</div></div>
+        <div><div class="meta-label">First focus</div><div class="meta-value">脚本索引<br>与运行状态</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phones">
+    <div class="phone-shell">
+      <div class="phone-label"><span>HOME / 日间索引</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-day">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="a-top">
+              <div class="a-brand"><span class="keycap">m</span>microauto<span style="color:#B4BCCB">/</span>scripts</div>
+              <div class="a-health"><span class="dot"></span>ACCESS OK</div>
+            </div>
+            <div class="a-title-row">
+              <div><div class="a-title">脚本</div><div class="a-sub">5 scripts · 2 scheduled</div></div>
+              <div class="a-ghost"><svg width="15" height="15"><use href="#i-plus"/></svg></div>
+            </div>
+            <div class="a-search"><svg><use href="#i-search"/></svg><span>搜索脚本、选择器或注释…</span><span class="a-kbd">⌘ K</span></div>
+            <div class="day-strip"><div><b>5</b>脚本</div><div><b>2</b>定时</div><div class="live"><b>1</b>运行中</div></div>
+            <div class="a-section"><span>ALL SCRIPTS</span><span>UPDATED ↓</span></div>
+            <div class="a-list">
+              <div class="a-row running">
+                <div class="a-index">01</div>
+                <div><div class="a-name">示例：定时签到模板</div><div class="a-meta"><span style="color:#2563EB">RUNNING 00:12</span><span>·</span><span class="sched">08:00</span></div></div>
+                <div class="a-run"><span class="spinner" style="border-color:rgba(37,99,235,.2);border-top-color:#2563EB"></span></div>
+              </div>
+              <div class="a-row">
+                <div class="a-index">02</div>
+                <div><div class="a-name">示例：常用工具函数</div><div class="a-meta"><span>15:56:06</span><span>·</span><span class="sched">手动</span></div></div>
+                <div class="a-run"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="a-row">
+                <div class="a-index">03</div>
+                <div><div class="a-name">示例：按文本点击</div><div class="a-meta"><span>15:56:06</span><span>·</span><span class="sched">08:30</span></div></div>
+                <div class="a-run"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="a-row">
+                <div class="a-index">04</div>
+                <div><div class="a-name">示例：滑动与等待</div><div class="a-meta"><span>15:56:06</span><span>·</span><span class="sched">手动</span></div></div>
+                <div class="a-run"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="a-row">
+                <div class="a-index">05</div>
+                <div><div class="a-name">示例：节点树</div><div class="a-meta"><span>15:56:06</span><span>·</span><span class="sched">手动</span></div></div>
+                <div class="a-run"><svg><use href="#i-play"/></svg></div>
+              </div>
+            </div>
+            <div class="a-runbar">
+              <span class="spinner" style="border-color:rgba(147,197,253,.2);border-top-color:#93C5FD"></span>
+              <div class="grow"><b>正在运行「示例：定时签到模板」</b><span>00:12 · 手动运行 · PID 2841</span></div>
+              <div class="a-mini"><svg><use href="#i-stop"/></svg></div>
+            </div>
+            <div class="a-nav">
+              <div class="item active"><svg><use href="#i-terminal"/></svg><span>脚本</span></div>
+              <div class="compose"><svg><use href="#i-plus"/></svg></div>
+              <div class="item"><svg><use href="#i-book"/></svg><span>教程</span></div>
+            </div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-shell">
+      <div class="phone-label"><span>EDITOR / 日间编辑</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-day">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="a-editor-head">
+              <div class="a-back"><svg><use href="#i-back"/></svg></div>
+              <div class="a-editor-title"><b>sign-in.js</b><span>示例：定时签到模板 · 已保存 15:57</span></div>
+              <div class="a-icon-btn on"><svg><use href="#i-check"/></svg></div>
+              <div class="a-icon-btn"><svg><use href="#i-more"/></svg></div>
+            </div>
+            <div class="a-tabs"><div class="a-tab active">CODE</div><div class="a-tab">LOG</div><div class="a-tab">API</div></div>
+            <div class="a-crumb"><span>~/scripts/sign-in.js</span><span class="a-chip">JS</span></div>
+            <div class="a-code">
+              <div class="code-line"><span class="ln">01</span><span class="tok-c">// 每日 08:00 自动签到</span></div>
+              <div class="code-line"><span class="ln">02</span><span><span class="tok-k">function</span> <span class="tok-f">waitAndClick</span>(label) {</span></div>
+              <div class="code-line"><span class="ln">03</span><span>  <span class="tok-k">var</span> node = <span class="tok-f">text</span>(label).<span class="tok-f">findOne</span>(<span class="tok-n">10000</span>);</span></div>
+              <div class="code-line"><span class="ln">04</span><span>  <span class="tok-k">if</span> (!node) {</span></div>
+              <div class="code-line"><span class="ln">05</span><span>    <span class="tok-f">log</span>(<span class="tok-s">"未找到: "</span> + label);</span></div>
+              <div class="code-line"><span class="ln">06</span><span>    <span class="tok-k">return</span> <span class="tok-n">false</span>;</span></div>
+              <div class="code-line"><span class="ln">07</span><span>  }</span></div>
+              <div class="code-line"><span class="ln">08</span><span>  node.<span class="tok-f">click</span>();</span></div>
+              <div class="code-line"><span class="ln">09</span><span>  <span class="tok-k">return</span> <span class="tok-n">true</span>;</span></div>
+              <div class="code-line"><span class="ln">10</span><span>}</span></div>
+              <div class="code-line"><span class="ln">11</span><span> </span></div>
+              <div class="code-line"><span class="ln">12</span><span><span class="tok-f">waitAndClick</span>(<span class="tok-s">"签到"</span>);</span></div>
+              <div class="code-line"><span class="ln">13</span><span><span class="tok-f">toast</span>(<span class="tok-s">"签到完成"</span>);</span></div>
+            </div>
+            <div class="a-actions">
+              <div class="a-btn-run"><svg><use href="#i-play"/></svg>RUN</div>
+              <div class="a-btn"><svg><use href="#i-stop"/></svg>STOP</div>
+              <div class="a-btn"><svg><use href="#i-eye"/></svg>DUMP</div>
+              <div class="a-btn"><svg><use href="#i-clock"/></svg>CRON</div>
+            </div>
+            <div class="a-foot"><span class="ok">● SAVED</span><span>Ln 4, Col 18</span><span>UTF-8 · JS · 13 LINES</span></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="concept-notes">
+    <div><div class="note-label">Why it works</div><div class="note-title">白天也能专业</div><p class="note-body">紧凑索引和等宽标签保留 IDE 的效率感，浅色底和状态摘要又让它不像纯开发者工具那么硬。</p></div>
+    <div><div class="note-label">Trade-off</div><div class="note-title">深色条要克制</div><p class="note-body">底部深色命令栏很提神，但使用过多会显得割裂；建议只用于运行区和编辑页操作区。</p></div>
+    <div><div class="note-label">Best for</div><div class="note-title">白天主力</div><p class="note-body">适合主要在白天使用、又想保留高信息密度的用户；也可以作为 Split Shift 的浅色回退。</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ H4 FLIP DECK ═══════════════════════════ -->
+<section class="concept" id="flip-deck">
+  <div class="concept-head">
+    <div class="concept-no">H4</div>
+    <div>
+      <div class="concept-kicker">Dark Monitor / Light Writing</div>
+      <h2>Flip Deck</h2>
+      <p class="tagline">监控时用深色仪表盘，写作时换成浅色稿纸。</p>
+      <p class="concept-desc">
+        首页沿用 Night Deck 的深色卡片和状态条，负责“看系统”；编辑页换成浅色代码卡和深色顶栏/底栏，负责“写脚本”。
+        和 Split Shift 正好相反：把深色留给监控，把浅色留给长时间阅读与输入。
+      </p>
+      <div class="tags"><span class="tag">深色监控</span><span class="tag">浅色编辑</span><span class="tag">反Split</span><span class="tag">阅读友好</span></div>
+      <div class="concept-meta">
+        <div><div class="meta-label">Palette</div><div class="swatches"><i class="swatch" style="background:#0B1020"></i><i class="swatch" style="background:#F3F3FB"></i><i class="swatch" style="background:#5B5BD6"></i><i class="swatch" style="background:#38BDF8"></i></div></div>
+        <div><div class="meta-label">Structure</div><div class="meta-value">Night Deck 首页<br>+ 浅色编辑卡</div></div>
+        <div><div class="meta-label">Density</div><div class="meta-value">首页舒适<br>编辑宽松</div></div>
+        <div><div class="meta-label">First focus</div><div class="meta-value">深色状态<br>浅色内容</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phones">
+    <div class="phone-shell">
+      <div class="phone-label"><span>HOME / 深色监控</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-nd">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="b-top">
+              <div><div class="b-hello">NIGHT OPS · 星期三</div><div class="b-title">自动化总览</div></div>
+              <div class="b-avatar">A</div>
+            </div>
+            <div class="b-summary">
+              <div class="b-stat"><div class="b-stat-icon"><svg><use href="#i-clock"/></svg></div><div><b>2 个定时</b><span>下一个 08:30</span></div></div>
+              <div class="b-stat"><div class="b-stat-icon green"><svg><use href="#i-play"/></svg></div><div><b>1 个运行中</b><span>已运行 12 秒</span></div></div>
+            </div>
+            <div class="b-search"><svg><use href="#i-search"/></svg><span>搜索脚本</span><div class="filter"><svg><use href="#i-list"/></svg></div></div>
+            <div class="b-section"><b>运行队列</b><span>5 个脚本</span></div>
+            <div class="b-list">
+              <div class="b-card running">
+                <div class="b-ico violet">签</div>
+                <div class="b-card-main"><div class="b-card-name">示例：定时签到模板</div><div class="b-chips"><span class="b-chip green">运行中 00:12</span><span class="b-chip violet">每天 08:00</span></div><div class="b-progress"><i></i></div></div>
+                <div class="b-play"><span class="spinner" style="width:13px;height:13px;border-color:rgba(108,124,255,.2);border-top-color:#6C7CFF"></span></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico blue">工</div>
+                <div class="b-card-main"><div class="b-card-name">示例：常用工具函数</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">上次成功</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico green">点</div>
+                <div class="b-card-main"><div class="b-card-name">示例：按文本点击</div><div class="b-chips"><span class="b-chip">每天 08:30</span><span class="b-chip green">昨天成功</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico amber">滑</div>
+                <div class="b-card-main"><div class="b-card-name">示例：滑动与等待</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">3 天前</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+              <div class="b-card">
+                <div class="b-ico blue">树</div>
+                <div class="b-card-main"><div class="b-card-name">示例：节点树</div><div class="b-chips"><span class="b-chip">手动</span><span class="b-chip">10 月 18 日</span></div></div>
+                <div class="b-play"><svg><use href="#i-play"/></svg></div>
+              </div>
+            </div>
+            <div class="b-status">
+              <span class="pulse"></span>
+              <div class="grow"><b>正在运行「示例：定时签到模板」</b><span>00:12 · 手动运行</span></div>
+              <div class="stop"><svg><use href="#i-stop"/></svg></div>
+            </div>
+            <div class="b-nav">
+              <div class="item active"><svg><use href="#i-code"/></svg><span>脚本</span></div>
+              <div class="b-fab"><svg><use href="#i-plus"/></svg></div>
+              <div class="item"><svg><use href="#i-book"/></svg><span>教程</span></div>
+            </div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-shell">
+      <div class="phone-label"><span>EDITOR / 浅色写作</span><span>360 × 800</span></div>
+      <div class="phone">
+        <div class="screen theme-flip-ed">
+          <div class="statusbar">
+            <span class="time">9:41</span>
+            <span class="status-icons"><svg><use href="#i-signal"/></svg><svg><use href="#i-wifi"/></svg><svg><use href="#i-battery"/></svg></span>
+          </div>
+          <div class="app">
+            <div class="b-editor-head">
+              <div class="b-back"><svg><use href="#i-back"/></svg></div>
+              <div class="b-editor-title"><b>示例：定时签到模板</b><span>WRITING MODE · 已保存 15:57</span></div>
+              <div class="b-iconbtn"><svg><use href="#i-check"/></svg></div>
+              <div class="b-iconbtn"><svg><use href="#i-more"/></svg></div>
+            </div>
+            <div class="b-tabs"><div class="b-tab active">编辑</div><div class="b-tab">日志</div><div class="b-tab">API</div></div>
+            <div class="b-last"><svg><use href="#i-check-circle"/></svg><b>上次运行成功</b><span>5.1 秒 · 15:57</span><span class="link">查看日志</span></div>
+            <div class="b-code-card">
+              <div class="b-code-head"><span class="file"><i></i>sign-in.js</span><span>JavaScript · 13 行</span></div>
+              <div class="b-code">
+                <div class="code-line"><span class="ln">01</span><span class="tok-c">// 每日 08:00 自动签到</span></div>
+                <div class="code-line"><span class="ln">02</span><span><span class="tok-k">function</span> <span class="tok-f">waitAndClick</span>(label) {</span></div>
+                <div class="code-line"><span class="ln">03</span><span>  <span class="tok-k">var</span> node = <span class="tok-f">text</span>(label).<span class="tok-f">findOne</span>(<span class="tok-n">10000</span>);</span></div>
+                <div class="code-line"><span class="ln">04</span><span>  <span class="tok-k">if</span> (!node) {</span></div>
+                <div class="code-line"><span class="ln">05</span><span>    <span class="tok-f">log</span>(<span class="tok-s">"未找到: "</span> + label);</span></div>
+                <div class="code-line"><span class="ln">06</span><span>    <span class="tok-k">return</span> <span class="tok-n">false</span>;</span></div>
+                <div class="code-line"><span class="ln">07</span><span>  }</span></div>
+                <div class="code-line"><span class="ln">08</span><span>  node.<span class="tok-f">click</span>();</span></div>
+                <div class="code-line"><span class="ln">09</span><span>  <span class="tok-k">return</span> <span class="tok-n">true</span>;</span></div>
+                <div class="code-line"><span class="ln">10</span><span>}</span></div>
+                <div class="code-line"><span class="ln">11</span><span> </span></div>
+                <div class="code-line"><span class="ln">12</span><span><span class="tok-f">waitAndClick</span>(<span class="tok-s">"签到"</span>);</span></div>
+                <div class="code-line"><span class="ln">13</span><span><span class="tok-f">toast</span>(<span class="tok-s">"签到完成"</span>);</span></div>
+              </div>
+            </div>
+            <div class="b-actions">
+              <div class="b-run"><svg><use href="#i-play"/></svg>运行脚本</div>
+              <div class="b-round"><svg><use href="#i-stop"/></svg></div>
+              <div class="b-round"><svg><use href="#i-eye"/></svg></div>
+              <div class="b-round"><svg><use href="#i-clock"/></svg></div>
+            </div>
+            <div class="b-foot"><span>Ln 4, Col 18</span><span>UTF-8 · JavaScript</span></div>
+          </div>
+          <div class="sysnav"><i class="nav-tri"></i><i class="nav-cir"></i><i class="nav-sq"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="concept-notes">
+    <div><div class="note-label">Why it works</div><div class="note-title">阅读最舒服</div><p class="note-body">深色只负责短时监控，浅色负责长时间阅读和输入；对眼睛和户外使用都更友好。</p></div>
+    <div><div class="note-label">Trade-off</div><div class="note-title">反差最大</div><p class="note-body">首页和编辑页的明暗关系与 Split Shift 相反，用户第一次进入编辑页会感到“换了一个 App”；需要清晰的空间提示。</p></div>
+    <div><div class="note-label">Best for</div><div class="note-title">监控 + 写作</div><p class="note-body">适合频繁查看运行状态、但真正写脚本时间较长的用户；也适合作为“监控模式/写作模式”的显式切换。</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ COMPARE ═══════════════════════════ -->
+<section class="compare" id="compare">
+  <div class="eyebrow">Decision / 怎么选</div>
+  <h2>不是选“好看”，<br>是选 MicroAuto 想成为什么。</h2>
+  <p>八套方案共用同一套功能与信息架构：前四套是独立气质，后四套是 01 × 02 的明暗与结构重组。实现成本都落在主题 token、布局和组件样式上，不涉及脚本运行时。</p>
+  <div class="table-label">Round 01 / 四个独立方向</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>方向</th><th>第一眼</th><th>最适合</th><th>代价 / 实现成本</th></tr></thead>
+      <tbody>
+        <tr><td>01 Midnight IDE</td><td>专业、深夜、代码</td><td>脚本重度用户、开发者</td><td>新用户门槛高，浅色场景弱<span class="cost">成本：中 · 需要完整深色 token 与浅色变体</span></td></tr>
+        <tr><td>02 Automation Deck</td><td>友好、状态、卡片</td><td>默认方案、新用户</td><td>脚本多时容易松散，需控制密度<span class="cost">成本：中 · 卡片/状态组件较多，但结构清楚</span></td></tr>
+        <tr><td>03 Paper &amp; Ink</td><td>安静、编辑、纸感</td><td>写作型用户、长期整理</td><td>效率感弱，Android 宋体回退需验证<span class="cost">成本：低 · 主要是排版与颜色，组件少</span></td></tr>
+        <tr><td>04 Control Room</td><td>工业、仪表、队列</td><td>多脚本、定时、运维型</td><td>气质偏硬，普通用户可能被劝退<span class="cost">成本：低 · 直角/边框/状态条，样式直接</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-label">Round 02 / 1 × 2 混合方向</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>方案</th><th>明暗分工</th><th>最适合</th><th>代价 / 实现成本</th></tr></thead>
+      <tbody>
+        <tr><td>H1 Night Deck</td><td>首页深色 + 编辑深色</td><td>夜间默认、Deck 用户</td><td>柔和圆角削弱 IDE 锋利感<span class="cost">成本：低 · Deck 布局换深色 token</span></td></tr>
+        <tr><td>H2 Split Shift</td><td>首页浅色 + 编辑深色</td><td>最像真实产品的默认方案</td><td>进出编辑页有明显亮度跳变<span class="cost">成本：中 · 两套外观 + 转场提示</span></td></tr>
+        <tr><td>H3 Studio Daylight</td><td>首页浅色 + 编辑浅色（深色命令栏）</td><td>白天主力、喜欢 IDE 密度</td><td>深色条用多了会割裂<span class="cost">成本：中 · IDE 布局浅色化 + 对比条</span></td></tr>
+        <tr><td>H4 Flip Deck</td><td>首页深色 + 编辑浅色</td><td>监控多、写作时间长</td><td>明暗关系与 H2 相反，需要模式提示<span class="cost">成本：中 · 浅色编辑 + 深色顶底栏</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pick">
+    <div class="num">→</div>
+    <div><b>如果从 1×2 里选：我建议默认 H2 Split Shift；想要全深色选 H1 Night Deck；想要全浅色但保留 IDE 密度选 H3 Studio Daylight；监控与写作并重选 H4 Flip Deck。</b><p>H2 最像真实产品：首页负责“找任务、看状态”，编辑页负责“沉浸写代码”，两边的靛蓝强调色和圆角尺度保持一致。原版 02 Automation Deck 仍然是最稳妥的纯浅色默认，01 Midnight IDE 可以作为它的深色主题。</p></div>
+  </div>
+  <p style="margin-top:18px;font-size:12px">下一步：你选一个方向（例如 H2，或“H2 + H3 作为浅色回退”），我可以把它落到现有 View 布局、主题 token 和组件样式里，先做首页与编辑页两屏，再逐步覆盖日志、API、版本页。</p>
+</section>
+
+<footer class="footer">
+  <span>MicroAuto / UI Direction Exploration / 2026.10</span>
+  <span>八套方向稿 · 360 × 800 · 非最终实现</span>
+</footer>
+
+</body>
+</html>

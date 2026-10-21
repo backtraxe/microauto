@@ -187,9 +187,13 @@ class EditorActivity : AppCompatActivity() {
         setupLogPage()
         setupApiSearch(savedInstanceState)
         setupTabs(savedInstanceState)
+        binding.btnLastRunLog.setOnClickListener {
+            binding.editorTabs.getTabAt(TAB_LOG)?.select()
+        }
         renderApiDocs()
 
         binding.toolbar.title = meta.name
+        binding.codeFileLabel.text = codeFileLabelText(scriptName)
         binding.toolbar.setNavigationOnClickListener { requestFinish() }
         binding.toolbar.inflateMenu(R.menu.menu_editor)
         applySymbolBarVisibility(isSymbolBarEnabled())
@@ -429,13 +433,90 @@ class EditorActivity : AppCompatActivity() {
             )
         }
         renderErrorCard(meta)
+        updateLastRunStrip(meta)
         binding.btnLogCopy.isEnabled = hasText
         binding.btnLogClear.isEnabled =
             (hasText || meta != null) && !RunState.running.value
     }
 
+    private fun updateLastRunStrip(meta: RunLogMeta?) {
+        val matching = meta?.takeIf { it.scriptId == scriptId }
+        binding.editorLastRun.isVisible = matching != null
+        if (matching == null) return
+
+        val titleRes = when (matching.status) {
+            RunPhase.SUCCESS -> R.string.editor_last_run_success
+            RunPhase.FAILED -> R.string.editor_last_run_failed
+            RunPhase.STOPPED -> R.string.editor_last_run_stopped
+            RunPhase.STARTING, RunPhase.RUNNING -> R.string.editor_last_run_running
+        }
+        val iconRes = when (matching.status) {
+            RunPhase.FAILED -> R.drawable.ic_warning
+            RunPhase.STOPPED -> R.drawable.ic_stop
+            RunPhase.STARTING, RunPhase.RUNNING -> R.drawable.ic_play_arrow
+            RunPhase.SUCCESS -> R.drawable.ic_check
+        }
+        val background = when (matching.status) {
+            RunPhase.SUCCESS -> ContextCompat.getColor(this, R.color.nd_green_soft)
+            RunPhase.FAILED -> MaterialColors.getColor(
+                binding.editorLastRun,
+                com.google.android.material.R.attr.colorErrorContainer,
+            )
+
+            RunPhase.STOPPED -> MaterialColors.getColor(
+                binding.editorLastRun,
+                com.google.android.material.R.attr.colorSurfaceContainerHigh,
+            )
+
+            RunPhase.STARTING, RunPhase.RUNNING -> MaterialColors.getColor(
+                binding.editorLastRun,
+                com.google.android.material.R.attr.colorPrimaryContainer,
+            )
+        }
+        val foreground = when (matching.status) {
+            RunPhase.SUCCESS -> ContextCompat.getColor(this, R.color.nd_green)
+            RunPhase.FAILED -> MaterialColors.getColor(
+                binding.editorLastRun,
+                com.google.android.material.R.attr.colorOnErrorContainer,
+            )
+
+            RunPhase.STOPPED -> MaterialColors.getColor(
+                binding.editorLastRun,
+                com.google.android.material.R.attr.colorOnSurfaceVariant,
+            )
+
+            RunPhase.STARTING, RunPhase.RUNNING -> MaterialColors.getColor(
+                binding.editorLastRun,
+                com.google.android.material.R.attr.colorOnPrimaryContainer,
+            )
+        }
+        binding.editorLastRun.setCardBackgroundColor(background)
+        binding.lastRunTitle.setText(titleRes)
+        binding.lastRunTitle.setTextColor(foreground)
+        binding.lastRunMeta.text = lastRunMetaText(matching)
+        binding.lastRunMeta.setTextColor(foreground)
+        binding.lastRunIcon.setImageResource(iconRes)
+        binding.lastRunIcon.imageTintList = ColorStateList.valueOf(foreground)
+        binding.btnLastRunLog.setTextColor(foreground)
+    }
+
+    private fun lastRunMetaText(meta: RunLogMeta): String = buildString {
+        val startedAt = DateFormats.formatTime(meta.startedAt)
+        val finishedAt = meta.finishedAt
+        if (finishedAt != null) {
+            val duration = (finishedAt - meta.startedAt).coerceAtLeast(0)
+            append("$startedAt · ${durationText(duration)}")
+        } else {
+            append(startedAt)
+        }
+        if (meta.source == RunSource.SCHEDULE) append(" · 定时任务")
+    }
+
     private fun logMetaText(meta: RunLogMeta): String = buildString {
-        append("「${meta.scriptName}」· ${DateFormats.formatTime(meta.startedAt)}")
+        if (meta.scriptId != scriptId) {
+            append("「${meta.scriptName}」· ")
+        }
+        append(DateFormats.formatTime(meta.startedAt))
         val finishedAt = meta.finishedAt
         if (finishedAt != null) {
             val duration = (finishedAt - meta.startedAt).coerceAtLeast(0)
@@ -693,7 +774,7 @@ class EditorActivity : AppCompatActivity() {
             setCardBackgroundColor(
                 MaterialColors.getColor(
                     binding.root,
-                    com.google.android.material.R.attr.colorSurface
+                    com.google.android.material.R.attr.colorSurfaceContainer
                 )
             )
         }
@@ -884,12 +965,16 @@ class EditorActivity : AppCompatActivity() {
         val count = binding.scriptEditor.lineCount.coerceAtLeast(1)
         if (count == lastLineCount) return
         lastLineCount = count
+        binding.codeMetaLabel.text = getString(R.string.editor_code_meta, count)
         val shown = count.coerceAtMost(ScriptLimits.MAX_SCRIPT_LINES)
         binding.lineNumbers.text = buildString {
             append((1..shown).joinToString("\n"))
             if (count > shown) append("\n…")
         }
     }
+
+    private fun codeFileLabelText(name: String): String =
+        if (name.endsWith(".js", ignoreCase = true)) name else "$name.js"
 
     private fun setupSymbolBar() {
         val symbols = listOf(
@@ -1170,6 +1255,7 @@ class EditorActivity : AppCompatActivity() {
         lastSavedContent = target
         lastSavedAt = System.currentTimeMillis()
         updateSaveState()
+        updateLineNumbers()
         binding.root.announceForAccessibility("已保存")
         true
     }
@@ -1222,6 +1308,7 @@ class EditorActivity : AppCompatActivity() {
                     if (repository.rename(scriptId, name)) {
                         scriptName = repository.find(scriptId)?.name ?: name
                         binding.toolbar.title = scriptName
+                        binding.codeFileLabel.text = codeFileLabelText(scriptName)
                         dialog.dismiss()
                         Snackbar.make(
                             binding.root,
@@ -1522,11 +1609,11 @@ class EditorActivity : AppCompatActivity() {
         button.icon = ContextCompat.getDrawable(this, iconRes)
         button.iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
         button.iconPadding = 0
-        button.iconSize = dp(24)
+        button.iconSize = dp(20)
         button.iconTint = ColorStateList.valueOf(MaterialColors.getColor(button, tintAttr))
         button.gravity = Gravity.CENTER
         button.minWidth = 0
-        button.minHeight = dp(48)
+        button.minHeight = dp(44)
         button.insetLeft = 0
         button.insetTop = 0
         button.insetRight = 0

@@ -79,9 +79,9 @@ class JsSyntaxHighlighter(
                     Palette(
                         keyword = "#C4B5FD".toColorInt(),
                         string = "#6EE7B7".toColorInt(),
-                        comment = "#9CA3AF".toColorInt(),
-                        number = "#FCD34D".toColorInt(),
-                        builtin = "#93C5FD".toColorInt()
+                        comment = "#7C8A9E".toColorInt(),
+                        number = "#FCA5A5".toColorInt(),
+                        builtin = "#7DD3FC".toColorInt()
                     )
                 } else {
                     Palette(

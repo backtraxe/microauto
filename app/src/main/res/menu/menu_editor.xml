@@ -13,14 +13,14 @@
         android:id="@+id/action_undo"
         android:icon="@drawable/ic_undo"
         android:title="@string/action_undo"
-        app:showAsAction="always"
+        app:showAsAction="never"
         tools:ignore="AlwaysShowAction" />
 
     <item
         android:id="@+id/action_redo"
         android:icon="@drawable/ic_redo"
         android:title="@string/action_redo"
-        app:showAsAction="always"
+        app:showAsAction="never"
         tools:ignore="AlwaysShowAction" />
 
     <item

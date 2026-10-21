@@ -47,6 +47,7 @@ import com.microauto.databinding.ActivityMainBinding
 import com.microauto.databinding.DialogRenameBinding
 import com.microauto.databinding.SheetEnvironmentBinding
 import com.microauto.schedule.SchedulePrefs
+import com.microauto.schedule.ScheduledScript
 import com.microauto.schedule.ScriptScheduler
 import com.microauto.script.FolderMeta
 import com.microauto.script.RepositoryHealth
@@ -62,6 +63,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.LocalTime
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -84,6 +87,7 @@ class MainActivity : AppCompatActivity() {
             val snapshot = RunState.snapshot.value ?: return
             if (!snapshot.phase.isActive() || !runStatusShown) return
             binding.runStatusMeta.text = activeMeta(snapshot)
+            updateRunningSummary(snapshot)
             statusHandler.postDelayed(this, STATUS_TICK_MS)
         }
     }
@@ -140,7 +144,6 @@ class MainActivity : AppCompatActivity() {
             onScriptClick = { openEditor(it.id) },
             onScriptMenu = { meta, anchor -> showScriptMenu(meta, anchor) },
             onScriptRun = { runScript(it) },
-            subtitle = { subtitle(it) },
             schedule = { scheduleText(it) }
         )
         binding.scriptList.layoutManager = LinearLayoutManager(this)
@@ -246,9 +249,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 R.id.nav_create -> {
-                    val anchor = binding.bottomNav.findViewById<View>(R.id.nav_create)
-                        ?: binding.bottomNav
-                    showCreateMenu(anchor)
+                    showCreateMenu(binding.navCreateFab)
                     false
                 }
 
@@ -260,6 +261,7 @@ class MainActivity : AppCompatActivity() {
                 else -> false
             }
         }
+        binding.navCreateFab.setOnClickListener { showCreateMenu(binding.navCreateFab) }
         binding.searchInput.doAfterTextChanged {
             searchHandler.removeCallbacks(searchRefresh)
             searchHandler.postDelayed(searchRefresh, SEARCH_DEBOUNCE_MS)
@@ -323,6 +325,7 @@ class MainActivity : AppCompatActivity() {
             statusHandler.removeCallbacks(statusTicker)
             cancelStatusHide()
             setRunStatusVisible(false)
+            updateRunningSummary(null)
             if (firstObservation) {
                 lastRenderedStartedAt = snapshot?.startedAt
                 lastAnnouncedPhase = snapshot?.phase
@@ -350,6 +353,7 @@ class MainActivity : AppCompatActivity() {
         bindStatusIcon(snapshot.phase)
         bindStatusAction(snapshot)
         setRunStatusVisible(true)
+        updateRunningSummary(snapshot)
 
         if (snapshot.phase != lastAnnouncedPhase) {
             announcementFor(snapshot)?.let { binding.root.announceForAccessibility(it) }
@@ -388,23 +392,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindStatusIcon(phase: RunPhase) {
-        val (icon, colorAttr) = when (phase) {
-            RunPhase.STARTING, RunPhase.RUNNING ->
-                R.drawable.ic_play_arrow to androidx.appcompat.R.attr.colorPrimary
+        val icon = when (phase) {
+            RunPhase.STARTING, RunPhase.RUNNING -> R.drawable.ic_play_arrow
+            RunPhase.SUCCESS -> R.drawable.ic_check
+            RunPhase.FAILED -> R.drawable.ic_warning
+            RunPhase.STOPPED -> R.drawable.ic_stop
+        }
+        val color = when (phase) {
+            RunPhase.STARTING, RunPhase.RUNNING, RunPhase.SUCCESS ->
+                ContextCompat.getColor(this, R.color.nd_green)
 
-            RunPhase.SUCCESS ->
-                R.drawable.ic_check to androidx.appcompat.R.attr.colorPrimary
+            RunPhase.FAILED -> MaterialColors.getColor(
+                binding.runStatusCard,
+                androidx.appcompat.R.attr.colorError,
+            )
 
-            RunPhase.FAILED ->
-                R.drawable.ic_warning to androidx.appcompat.R.attr.colorError
-
-            RunPhase.STOPPED ->
-                R.drawable.ic_stop to com.google.android.material.R.attr.colorOnSurfaceVariant
+            RunPhase.STOPPED -> MaterialColors.getColor(
+                binding.runStatusCard,
+                com.google.android.material.R.attr.colorOnSurfaceVariant,
+            )
         }
         binding.runStatusIcon.setImageResource(icon)
-        binding.runStatusIcon.imageTintList = ColorStateList.valueOf(
-            MaterialColors.getColor(binding.runStatusCard, colorAttr)
-        )
+        binding.runStatusIcon.imageTintList = ColorStateList.valueOf(color)
     }
 
     private fun bindStatusAction(snapshot: RunSnapshot) {
@@ -752,6 +761,7 @@ class MainActivity : AppCompatActivity() {
             scripts.forEach { add(LibraryItem.Script(it)) }
         }
         adapter.submit(items)
+        binding.scriptCountText.text = getString(R.string.home_script_count, scripts.size)
         val empty = items.isEmpty()
         binding.emptyState.isVisible = empty
         binding.scriptList.isVisible = !empty
@@ -766,8 +776,90 @@ class MainActivity : AppCompatActivity() {
             else -> "新建一个脚本，或从文件导入 .js / .txt"
         }
         binding.btnEmptyFolder.isVisible = !searching && currentFolderId == null
+        updateHomeHeader()
+        val schedules = SchedulePrefs.enabled(this)
+        updateScheduleSummary(schedules)
         updateToolbar()
-        updateStatus()
+        updateStatus(schedules)
+    }
+
+    private fun updateHomeHeader() {
+        val now = LocalDate.now()
+        binding.homeDate.text = DateFormats.formatHomeDate(now)
+        binding.homeGreeting.text = DateFormats.greeting(LocalTime.now().hour)
+    }
+
+    private fun updateScheduleSummary(schedules: List<ScheduledScript>) {
+        binding.summaryScheduleTitle.text = getString(
+            R.string.home_summary_schedule_count,
+            schedules.size,
+        )
+        binding.summaryScheduleHint.text = if (schedules.isEmpty()) {
+            getString(R.string.home_summary_no_schedule)
+        } else {
+            getString(R.string.home_summary_next_schedule, nextScheduleTime(schedules))
+        }
+    }
+
+    private fun nextScheduleTime(schedules: List<ScheduledScript>): String {
+        val now = LocalTime.now()
+        val nowMinutes = now.hour * 60 + now.minute
+        val minutes = schedules.map { it.hour * 60 + it.minute }.sorted()
+        val next = minutes.firstOrNull { it >= nowMinutes } ?: minutes.first()
+        return timeText(next / 60, next % 60)
+    }
+
+    private fun updateRunningSummary(snapshot: RunSnapshot?) {
+        val current = snapshot?.takeIf { it.source != RunSource.DUMP }
+        val active = current != null && current.phase.isActive()
+        binding.summaryRunningIcon.imageTintList = ColorStateList.valueOf(
+            if (active) {
+                ContextCompat.getColor(this, R.color.nd_green)
+            } else {
+                MaterialColors.getColor(
+                    binding.summaryRunningIcon,
+                    com.google.android.material.R.attr.colorOnSurfaceVariant,
+                )
+            }
+        )
+        binding.summaryRunningIcon.backgroundTintList = ColorStateList.valueOf(
+            if (active) {
+                ContextCompat.getColor(this, R.color.nd_green_soft)
+            } else {
+                MaterialColors.getColor(
+                    binding.summaryRunningIcon,
+                    com.google.android.material.R.attr.colorSurfaceVariant,
+                )
+            }
+        )
+        binding.summaryRunningTitle.text = getString(
+            if (active) R.string.home_summary_running_count else R.string.home_summary_idle
+        )
+        binding.summaryRunningHint.text = when {
+            active -> getString(
+                R.string.home_summary_elapsed,
+                clockText(current!!.startedAt, System.currentTimeMillis()),
+            )
+
+            current == null -> getString(R.string.home_summary_no_run)
+
+            current.phase == RunPhase.SUCCESS -> getString(
+                R.string.home_summary_last_success,
+                DateFormats.formatTime(current.finishedAt ?: current.startedAt),
+            )
+
+            current.phase == RunPhase.FAILED -> getString(
+                R.string.home_summary_last_failed,
+                DateFormats.formatTime(current.finishedAt ?: current.startedAt),
+            )
+
+            current.phase == RunPhase.STOPPED -> getString(
+                R.string.home_summary_last_stopped,
+                DateFormats.formatTime(current.finishedAt ?: current.startedAt),
+            )
+
+            else -> getString(R.string.home_summary_no_run)
+        }
     }
 
     private fun updateToolbar() {
@@ -777,7 +869,7 @@ class MainActivity : AppCompatActivity() {
         binding.toolbar.title = when {
             query.isNotEmpty() -> "搜索结果"
             folder != null -> folder.name
-            else -> "脚本"
+            else -> "自动化"
         }
         if (folder != null && query.isEmpty()) {
             binding.toolbar.setNavigationIcon(R.drawable.ic_arrow_back)
@@ -792,8 +884,7 @@ class MainActivity : AppCompatActivity() {
             folder == null && query.isEmpty()
     }
 
-    private fun updateStatus() {
-        val schedules = SchedulePrefs.enabled(this)
+    private fun updateStatus(schedules: List<ScheduledScript>) {
         binding.toolbar.menu.findItem(R.id.action_schedule)?.title = when {
             schedules.isEmpty() -> "定时：未启用"
             schedules.size == 1 -> {
@@ -804,14 +895,13 @@ class MainActivity : AppCompatActivity() {
 
             else -> "定时：${schedules.size} 个脚本"
         }
-        updateSetupBanner()
+        updateSetupBanner(schedules.isNotEmpty())
     }
 
-    private fun updateSetupBanner() {
+    private fun updateSetupBanner(hasEnabledSchedule: Boolean) {
         val accessibilityEnabled = AccessibilityUtils.isEnabled(this)
         val exactAlarmUnavailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() != true
-        val hasEnabledSchedule = SchedulePrefs.enabled(this).isNotEmpty()
         when {
             !accessibilityEnabled -> {
                 binding.setupIcon.setImageResource(R.drawable.ic_warning)
@@ -875,20 +965,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun subtitle(meta: ScriptMeta): String {
-        val updated = DateFormats.format(meta.updatedAt)
-        val folder = meta.folderId?.let { repository.folderName(it) }
-        return if (folder != null) {
-            "在 $folder · 修改于 $updated"
-        } else {
-            "修改于 $updated"
-        }
-    }
-
     private fun scheduleText(meta: ScriptMeta): String? {
         val schedule = SchedulePrefs.scheduleFor(this, meta.id)?.takeIf { it.enabled }
             ?: return null
-        return "每天 ${timeText(schedule.hour, schedule.minute)}"
+        return getString(R.string.script_chip_schedule, timeText(schedule.hour, schedule.minute))
     }
 
     private fun timeText(hour: Int, minute: Int): String = String.format(
@@ -944,6 +1024,7 @@ class MainActivity : AppCompatActivity() {
                 toast("名称不能为空")
             } else {
                 refresh()
+                binding.scriptList.post { binding.scriptList.scrollToPosition(0) }
                 toast("已创建文件夹")
             }
         }
