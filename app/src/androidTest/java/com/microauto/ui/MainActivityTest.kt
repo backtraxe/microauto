@@ -41,6 +41,7 @@ class MainActivityTest {
             onView(withId(R.id.bottomNav)).check(matches(isDisplayed()))
             openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
             onView(withText(containsString("无障碍"))).check(matches(isDisplayed()))
+            pressBack()
         }
     }
 

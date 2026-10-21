@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu
+import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.action.ViewActions.replaceText
 import androidx.test.espresso.assertion.ViewAssertions.matches
@@ -51,6 +52,7 @@ class EditorActivityTest {
             onView(withId(R.id.symbolBar)).check(matches(isDisplayed()))
             onView(withId(R.id.btnSchedule)).perform(click())
             onView(withId(R.id.scheduleTime)).check(matches(isDisplayed()))
+            pressBack()
         }
     }
 
@@ -106,6 +108,7 @@ class EditorActivityTest {
                 val editor = activity.findViewById<android.widget.EditText>(R.id.scriptEditor)
                 assertEquals("dog dog", editor.text.toString())
             }
+            pressBack()
         }
     }
 

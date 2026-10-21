@@ -75,6 +75,7 @@ class EditorActivity : AppCompatActivity() {
     private var highlighter: JsSyntaxHighlighter? = null
     private var lastLineCount = 0
     private var undoManager: EditorUndoManager? = null
+    private var scheduleDialog: BottomSheetDialog? = null
     private var findDialog: BottomSheetDialog? = null
     private var findSheet: SheetFindReplaceBinding? = null
     private var findMatches: List<FindMatch> = emptyList()
@@ -169,6 +170,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        scheduleDialog?.dismiss()
         findDialog?.dismiss()
         undoManager?.stop()
         highlighter?.release()
@@ -663,6 +665,8 @@ class EditorActivity : AppCompatActivity() {
 
         val dialog = BottomSheetDialog(this)
         dialog.setContentView(sheetBinding.root)
+        scheduleDialog = dialog
+        dialog.setOnDismissListener { scheduleDialog = null }
         sheetBinding.btnSaveSchedule.setOnClickListener {
             val parsed = ScheduleTime.parseTime(
                 sheetBinding.scheduleTime.text?.toString().orEmpty()
