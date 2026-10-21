@@ -51,6 +51,7 @@ class EditorActivityTest {
             onView(withId(R.id.lineNumbers)).check(matches(isDisplayed()))
             onView(withId(R.id.btnSchedule)).perform(click())
             onView(withId(R.id.scheduleTime)).check(matches(isDisplayed()))
+            closeSoftKeyboard()
             pressBack()
         }
     }

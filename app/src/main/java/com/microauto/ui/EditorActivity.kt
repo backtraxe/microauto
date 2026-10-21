@@ -905,6 +905,10 @@ class EditorActivity : AppCompatActivity() {
         dialog.setContentView(sheetBinding.root)
         scheduleDialog = dialog
         dialog.setOnDismissListener { scheduleDialog = null }
+        dialog.setOnShowListener { sheetBinding.scheduleTime.clearFocus() }
+        dialog.window?.setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+        )
         sheetBinding.btnSaveSchedule.setOnClickListener {
             val parsed = ScheduleTime.parseTime(
                 sheetBinding.scheduleTime.text?.toString().orEmpty()
