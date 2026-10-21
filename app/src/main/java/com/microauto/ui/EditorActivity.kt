@@ -320,13 +320,19 @@ class EditorActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(8) }
-            radius = dp(12).toFloat()
+            radius = dp(8).toFloat()
             cardElevation = 0f
-            strokeWidth = 0
+            strokeWidth = dp(1)
+            setStrokeColor(
+                MaterialColors.getColor(
+                    binding.root,
+                    com.google.android.material.R.attr.colorOutlineVariant
+                )
+            )
             setCardBackgroundColor(
                 MaterialColors.getColor(
                     binding.root,
-                    com.google.android.material.R.attr.colorSurfaceContainer
+                    com.google.android.material.R.attr.colorSurface
                 )
             )
         }
@@ -448,7 +454,7 @@ class EditorActivity : AppCompatActivity() {
     private fun expandEditorToFillPage() {
         val lineHeight = binding.scriptEditor.lineHeight
         if (lineHeight <= 0) return
-        val chrome = dp(32 + 24 + 8)
+        val chrome = dp(24 + 24 + 8)
         val lines = ((binding.editorScroll.height - chrome) / lineHeight)
             .coerceIn(20, 32)
         binding.scriptEditor.minLines = lines

@@ -37,5 +37,6 @@
         <item name="colorOnErrorContainer">@color/md_on_error_container</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.MicroAuto.SmallComponent</item>
     </style>
 </resources>
