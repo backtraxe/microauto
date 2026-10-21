@@ -65,4 +65,18 @@ class RunLogInstrumentedTest {
         assertEquals("STOPPED", prefs.getString("status", null))
         assertNull(prefs.getString("finished_at", null))
     }
+
+    @Test
+    fun lateErrorAfterCompletionIsIgnored() {
+        RunLog.begin("script-1", "签到脚本", RunSource.MANUAL)
+        val startedAt = RunLog.meta.value!!.startedAt
+        RunLog.complete(RunPhase.SUCCESS)
+
+        RunLog.recordError(7, "late ReferenceError", startedAt)
+
+        val meta = RunLog.meta.value ?: error("缺少 meta")
+        assertEquals(RunPhase.SUCCESS, meta.status)
+        assertNull(meta.errorLine)
+        assertNull(meta.errorMessage)
+    }
 }

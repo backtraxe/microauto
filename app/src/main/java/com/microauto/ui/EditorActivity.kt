@@ -37,12 +37,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.net.toUri
+import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -87,7 +89,10 @@ class EditorActivity : AppCompatActivity() {
         private const val TAB_CODE = 0
         private const val TAB_LOG = 1
         private const val TAB_API = 2
+        const val EXTRA_COMPACT_ACTIONS = "compact_actions"
+        private const val LARGE_FONT_SCALE = 1.3f
         private const val STATE_TAB = "editor_tab"
+        private const val STATE_API_QUERY = "editor_api_query"
         private const val PREFS_EDITOR = "editor_prefs"
         private const val KEY_SYMBOL_BAR = "symbol_bar"
         private const val STATE_TEXT_OMITTED = "editor_text_omitted"
@@ -180,6 +185,7 @@ class EditorActivity : AppCompatActivity() {
         }
         binding.logScroll.clipToOutline = true
         setupLogPage()
+        setupApiSearch(savedInstanceState)
         setupTabs(savedInstanceState)
         renderApiDocs()
 
@@ -239,6 +245,7 @@ class EditorActivity : AppCompatActivity() {
         updateSaveState()
         undoManager = EditorUndoManager(binding.scriptEditor) { updateUndoRedo() }
         undoManager?.start()
+        applyBottomActionMode()
         updateScheduleSummary()
         bindActions()
         observeState()
@@ -288,6 +295,10 @@ class EditorActivity : AppCompatActivity() {
         }
         if (omitText) outState.putBoolean(STATE_TEXT_OMITTED, true)
         outState.putInt(STATE_TAB, binding.editorTabs.selectedTabPosition)
+        outState.putString(
+            STATE_API_QUERY,
+            binding.apiSearchInput.text?.toString().orEmpty(),
+        )
     }
 
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
@@ -488,7 +499,7 @@ class EditorActivity : AppCompatActivity() {
             if (line != null) append("第 $line 行 · ")
             append(message)
         }
-        val canJump = line != null && !foreign
+        val canJump = line != null && meta.scriptId == scriptId
         if (binding.errorText.text.toString() != label) {
             binding.errorText.text = label
         }
@@ -582,27 +593,86 @@ class EditorActivity : AppCompatActivity() {
         binding.editorTabs.getTabAt(TAB_LOG)?.select()
     }
 
+    private fun setupApiSearch(savedInstanceState: Bundle?) {
+        savedInstanceState?.getString(STATE_API_QUERY)?.let { query ->
+            binding.apiSearchInput.setText(query)
+            binding.apiSearchInput.setSelection(query.length)
+        }
+        binding.apiSearchInput.doAfterTextChanged { renderApiDocs() }
+        binding.btnClearApiSearch.setOnClickListener {
+            binding.apiSearchInput.setText("")
+            binding.apiSearchInput.requestFocus()
+        }
+    }
+
     private fun renderApiDocs() {
+        val query = binding.apiSearchInput.text?.toString().orEmpty()
+        val hasQuery = query.trim().isNotEmpty()
+        val sections = ApiDocsFilter.filter(ApiDocs.sections, query)
         binding.apiList.removeAllViews()
-        ApiDocs.sections.forEachIndexed { index, section ->
-            binding.apiList.addView(
-                TextView(this).apply {
-                    text = section.title
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-                    setTypeface(typeface, Typeface.BOLD)
-                    setTextColor(
-                        MaterialColors.getColor(
-                            binding.root,
-                            com.google.android.material.R.attr.colorOnSurface
-                        )
+        sections.forEachIndexed { index, section ->
+            val title = TextView(this).apply {
+                text = section.title
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(
+                    MaterialColors.getColor(
+                        binding.root,
+                        com.google.android.material.R.attr.colorOnSurface
                     )
-                    setPadding(dp(4), if (index == 0) dp(8) else dp(24), dp(4), dp(8))
-                }
-            )
+                )
+                setPadding(dp(4), if (index == 0) dp(8) else dp(24), dp(4), dp(8))
+            }
+            ViewCompat.setAccessibilityHeading(title, true)
+            binding.apiList.addView(title)
             section.entries.forEach { entry ->
                 binding.apiList.addView(createApiEntryView(entry))
             }
         }
+        binding.apiResultCount.isVisible = hasQuery
+        binding.apiResultCount.text = getString(
+            R.string.api_result_count,
+            ApiDocsFilter.entryCount(sections),
+        )
+        val empty = hasQuery && sections.isEmpty()
+        binding.apiScroll.isVisible = !empty
+        binding.apiEmpty.isVisible = empty
+    }
+
+    private fun insertApiExample(entry: ApiEntry) {
+        val snippet = entry.example ?: entry.signature
+        val editor = binding.scriptEditor
+        val editable = editor.text ?: return
+        val start = minOf(editor.selectionStart, editor.selectionEnd)
+            .coerceIn(0, editable.length)
+        val end = maxOf(editor.selectionStart, editor.selectionEnd)
+            .coerceIn(start, editable.length)
+        val prefix = if (
+            start > 0 && editable[start - 1] != '\n' && !snippet.startsWith("\n")
+        ) {
+            "\n"
+        } else {
+            ""
+        }
+        val suffix = if (
+            end < editable.length && editable[end] != '\n' && !snippet.endsWith("\n")
+        ) {
+            "\n"
+        } else {
+            ""
+        }
+        val insertion = prefix + snippet + suffix
+        undoManager?.breakCoalescing()
+        editable.replace(start, end, insertion)
+        val cursor = start + prefix.length + snippet.length
+        editor.setSelection(cursor)
+        undoManager?.breakCoalescing()
+        binding.editorTabs.getTabAt(TAB_CODE)?.select()
+        editor.requestFocus()
+        editor.post { editor.bringPointIntoView(cursor) }
+        Snackbar.make(binding.root, R.string.api_inserted, Snackbar.LENGTH_LONG)
+            .setAction(R.string.action_undo) { undoManager?.undo() }
+            .show()
     }
 
     private fun createApiEntryView(entry: ApiEntry): View {
@@ -681,6 +751,17 @@ class EditorActivity : AppCompatActivity() {
                 }
             )
         }
+        val insertButton = layoutInflater.inflate(
+            R.layout.view_api_insert_button,
+            content,
+            false,
+        )
+        insertButton.contentDescription = getString(
+            R.string.api_insert_desc,
+            entry.signature,
+        )
+        insertButton.setOnClickListener { insertApiExample(entry) }
+        content.addView(insertButton)
         card.addView(content)
         return card
     }
@@ -1402,6 +1483,61 @@ class EditorActivity : AppCompatActivity() {
             .setNeutralButton("取消", null)
             .show()
     }
+
+    private fun applyBottomActionMode() {
+        if (!useCompactActions()) return
+        configureCompactAction(
+            binding.btnRun,
+            R.drawable.ic_play_arrow,
+            com.google.android.material.R.attr.colorOnPrimary,
+            "运行",
+        )
+        configureCompactAction(
+            binding.btnStop,
+            R.drawable.ic_stop,
+            androidx.appcompat.R.attr.colorPrimary,
+            "停止",
+        )
+        configureCompactAction(
+            binding.btnDump,
+            R.drawable.ic_visibility,
+            androidx.appcompat.R.attr.colorPrimary,
+            "看界面",
+        )
+        configureCompactAction(
+            binding.btnSchedule,
+            R.drawable.ic_clock,
+            androidx.appcompat.R.attr.colorPrimary,
+            "定时",
+        )
+    }
+
+    private fun configureCompactAction(
+        button: MaterialButton,
+        iconRes: Int,
+        tintAttr: Int,
+        description: String,
+    ) {
+        button.text = null
+        button.icon = ContextCompat.getDrawable(this, iconRes)
+        button.iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
+        button.iconPadding = 0
+        button.iconSize = dp(24)
+        button.iconTint = ColorStateList.valueOf(MaterialColors.getColor(button, tintAttr))
+        button.gravity = Gravity.CENTER
+        button.minWidth = 0
+        button.minHeight = dp(48)
+        button.insetLeft = 0
+        button.insetTop = 0
+        button.insetRight = 0
+        button.insetBottom = 0
+        button.setPadding(0, 0, 0, 0)
+        button.contentDescription = description
+    }
+
+    private fun useCompactActions(): Boolean =
+        intent.getBooleanExtra(EXTRA_COMPACT_ACTIONS, false) ||
+            resources.configuration.fontScale >= LARGE_FONT_SCALE
 
     private fun updateScheduleSummary() {
         val schedule = SchedulePrefs.scheduleFor(this, scriptId)

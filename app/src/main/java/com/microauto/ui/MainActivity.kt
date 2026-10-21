@@ -280,8 +280,23 @@ class MainActivity : AppCompatActivity() {
         }
         binding.btnEmptyFolder.setOnClickListener { newFolder() }
         binding.bottomStack.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateListPadding()
+            binding.bottomStack.post { updateListPadding() }
         }
+        setupTutorialHeadings()
+    }
+
+    private fun setupTutorialHeadings() {
+        listOf(
+            binding.tutorialContent.tutorialQuickStartTitle,
+            binding.tutorialContent.tutorialFirstScriptTitle,
+            binding.tutorialContent.tutorialScheduleTitle,
+            binding.tutorialContent.tutorialFolderTitle,
+            binding.tutorialContent.tutorialVersionsTitle,
+            binding.tutorialContent.tutorialSearchTitle,
+            binding.tutorialContent.tutorialImportExportTitle,
+            binding.tutorialContent.tutorialLimitsTitle,
+            binding.tutorialContent.tutorialBuiltinsTitle,
+        ).forEach { ViewCompat.setAccessibilityHeading(it, true) }
     }
 
     private fun observeRunState() {
@@ -516,6 +531,18 @@ class MainActivity : AppCompatActivity() {
                 binding.tutorialContent.root.paddingTop,
                 binding.tutorialContent.root.paddingRight,
                 tutorialBottom,
+            )
+        }
+        val emptyBottom = maxOf(
+            dynamic,
+            dp(if (runStatusShown) EMPTY_PADDING_WITH_STATUS_DP else EMPTY_PADDING_DP),
+        )
+        if (binding.emptyState.paddingBottom != emptyBottom) {
+            binding.emptyState.setPadding(
+                binding.emptyState.paddingLeft,
+                binding.emptyState.paddingTop,
+                binding.emptyState.paddingRight,
+                emptyBottom,
             )
         }
     }
@@ -1369,5 +1396,7 @@ class MainActivity : AppCompatActivity() {
         const val LIST_PADDING_WITH_STATUS_DP = 176
         const val TUTORIAL_PADDING_DP = 120
         const val TUTORIAL_PADDING_WITH_STATUS_DP = 176
+        const val EMPTY_PADDING_DP = 120
+        const val EMPTY_PADDING_WITH_STATUS_DP = 176
     }
 }

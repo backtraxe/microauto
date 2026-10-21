@@ -78,6 +78,27 @@
 
     <string name="empty_no_versions">还没有发布版本</string>
     <string name="empty_no_versions_hint">在编辑页菜单里点「发布版本」，为当前内容创建快照。</string>
+    <string name="action_publish_version">发布当前版本</string>
+
+    <string name="version_restore">恢复此版本</string>
+    <string name="version_restore_action">恢复</string>
+    <string name="version_close">关闭</string>
+    <string name="version_same_content">与当前内容相同</string>
+    <string name="version_current_is_this">当前已是此版本</string>
+    <string name="version_corrupt">版本内容已损坏</string>
+    <string name="version_empty_content">当前版本内容为空</string>
+    <string name="version_too_large">文件较大，已跳过差异</string>
+    <string name="version_note_empty">无备注</string>
+    <string name="version_line_count">共 %1$d 行</string>
+    <string name="version_diff_summary">+%1$d −%2$d</string>
+    <string name="version_restore_title">恢复 v%1$d</string>
+    <string name="version_restore_confirm_message">当前脚本内容会被覆盖；恢复前会自动保存一个「恢复前自动快照」。</string>
+    <string name="version_restore_failed">恢复失败，版本文件可能已损坏</string>
+    <string name="version_restore_success">已恢复 v%1$d</string>
+    <string name="version_publish_success">已发布 v%1$d</string>
+    <string name="version_publish_empty">已发布 v%1$d；当前内容为空</string>
+    <string name="version_script_missing">脚本不存在，无法发布</string>
+    <string name="version_publish_failed">发布失败</string>
 
     <string name="rename_script_hint">脚本名称</string>
     <string name="version_note_hint">版本备注（可选）</string>
@@ -102,6 +123,15 @@
     <string name="find_next">下一个</string>
     <string name="find_replace">替换</string>
     <string name="find_replace_all">全部替换</string>
+
+    <string name="api_search_hint">搜索 API 或说明</string>
+    <string name="api_result_count">找到 %1$d 条</string>
+    <string name="api_empty_title">没有找到匹配的 API</string>
+    <string name="api_empty_hint">试试 text、click、findOne，或清空搜索</string>
+    <string name="api_clear_search">清空搜索</string>
+    <string name="api_insert">插入</string>
+    <string name="api_insert_desc">插入 %1$s 的示例</string>
+    <string name="api_inserted">已插入示例</string>
 
     <string name="schedule_description">到点后自动运行当前脚本。每个脚本可以单独设置定时。</string>
     <string name="schedule_time_hint">时间（HH:mm）</string>

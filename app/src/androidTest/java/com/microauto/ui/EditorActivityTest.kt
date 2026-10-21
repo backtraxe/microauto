@@ -5,8 +5,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.view.View
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.ScrollView
+import androidx.core.view.ViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -21,10 +24,12 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isDialog
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.isEnabled
+import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
 import com.microauto.R
 import com.microauto.TestData
 import com.microauto.accessibility.AccessibilityUtils
@@ -64,10 +69,14 @@ class EditorActivityTest {
         RunLog.clear()
     }
 
-    private fun launch(openLog: Boolean = false): ActivityScenario<EditorActivity> {
+    private fun launch(
+        openLog: Boolean = false,
+        compactActions: Boolean = false,
+    ): ActivityScenario<EditorActivity> {
         val intent = Intent(context, EditorActivity::class.java)
             .putExtra(EditorActivity.EXTRA_SCRIPT_ID, scriptId)
             .putExtra(EditorActivity.EXTRA_OPEN_LOG, openLog)
+            .putExtra(EditorActivity.EXTRA_COMPACT_ACTIONS, compactActions)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return ActivityScenario.launch(intent)
     }
@@ -706,6 +715,183 @@ class EditorActivityTest {
             onView(withId(R.id.bottomNav)).check(matches(isDisplayed()))
         }
     }
+
+    @Test
+    fun lineNumbersAreHiddenFromAccessibilityAndApiTitlesAreHeadings() {
+        launch().use { scenario ->
+            scenario.onActivity { activity ->
+                assertEquals(
+                    View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+                    activity.findViewById<View>(R.id.lineNumbers).importantForAccessibility,
+                )
+            }
+            onView(withText(R.string.editor_tab_api)).perform(click())
+            scenario.onActivity { activity ->
+                val list = activity.findViewById<LinearLayout>(R.id.apiList)
+                assertTrue(ViewCompat.isAccessibilityHeading(list.getChildAt(0)))
+            }
+        }
+    }
+
+    @Test
+    fun compactActionsShowIconButtonsWithDescriptions() {
+        launch(compactActions = true).use { scenario ->
+            onView(withContentDescription("运行")).check(matches(isDisplayed()))
+            onView(withContentDescription("停止")).check(matches(isDisplayed()))
+            onView(withContentDescription("看界面")).check(matches(isDisplayed()))
+            scenario.onActivity { activity ->
+                val buttons = listOf(
+                    R.id.btnRun,
+                    R.id.btnStop,
+                    R.id.btnDump,
+                    R.id.btnSchedule,
+                ).map { id -> activity.findViewById<MaterialButton>(id) }
+                buttons.forEach { button ->
+                    assertTrue(button.isShown)
+                    assertTrue(button.text.isNullOrEmpty())
+                    assertTrue(button.icon != null)
+                    assertFalse(button.contentDescription.isNullOrBlank())
+                }
+                assertTrue(
+                    activity.findViewById<MaterialButton>(R.id.btnSchedule)
+                        .contentDescription
+                        .toString()
+                        .contains("定时"),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun dumpErrorWithoutScriptIdHasNoJumpButton() {
+        RunLog.begin(null, "看界面", RunSource.DUMP)
+        RunLog.recordError(3, "ReferenceError: foo is not defined")
+        RunLog.complete(RunPhase.FAILED)
+
+        launch(openLog = true).use { scenario ->
+            onView(withId(R.id.errorCard)).check(matches(isDisplayed()))
+            onView(withId(R.id.btnJumpToLine)).check(matches(not(isDisplayed())))
+            scenario.onActivity { activity ->
+                assertFalse(activity.findViewById<View>(R.id.errorCard).isClickable)
+            }
+        }
+    }
+
+    @Test
+    fun apiSearchFiltersAndShowsResultCount() {
+        launch().use {
+            onView(withText(R.string.editor_tab_api)).perform(click())
+            onView(withId(R.id.apiSearchLayout)).check(matches(isDisplayed()))
+            onView(withId(R.id.apiSearchInput)).perform(replaceText("findOne"))
+
+            val expected = ApiDocsFilter.entryCount(
+                ApiDocsFilter.filter(ApiDocs.sections, "findOne")
+            )
+            onView(withId(R.id.apiResultCount))
+                .check(matches(withText("找到 $expected 条")))
+            onView(withText("text(value)")).check(doesNotExist())
+            onView(withText(".findOne(timeout = 10000)"))
+                .check(matches(withText(".findOne(timeout = 10000)")))
+        }
+    }
+
+    @Test
+    fun apiSearchEmptyStateClearsQuery() {
+        launch().use {
+            onView(withText(R.string.editor_tab_api)).perform(click())
+            onView(withId(R.id.apiSearchInput)).perform(replaceText("zzzz-not-found"))
+
+            onView(withId(R.id.apiEmpty)).check(matches(isDisplayed()))
+            onView(withText("没有找到匹配的 API")).check(matches(isDisplayed()))
+            onView(withText("清空搜索")).perform(click())
+
+            onView(withId(R.id.apiSearchInput)).check(matches(withText("")))
+            onView(withId(R.id.apiResultCount)).check(matches(not(isDisplayed())))
+            onView(withText("text(value)")).check(matches(withText("text(value)")))
+        }
+    }
+
+    @Test
+    fun apiSearchSurvivesRecreate() {
+        launch().use { scenario ->
+            onView(withText(R.string.editor_tab_api)).perform(click())
+            onView(withId(R.id.apiSearchInput)).perform(replaceText("findOne"))
+
+            scenario.recreate()
+
+            onView(withId(R.id.apiSearchInput)).check(matches(withText("findOne")))
+            val expected = ApiDocsFilter.entryCount(
+                ApiDocsFilter.filter(ApiDocs.sections, "findOne")
+            )
+            onView(withId(R.id.apiResultCount))
+                .check(matches(withText("找到 $expected 条")))
+        }
+    }
+
+    @Test
+    fun insertExampleSwitchesToCodeAndUndoRestores() {
+        val example = apiEntry("toast(message)").example
+            ?: error("toast(message) 缺少示例")
+
+        launch().use { scenario ->
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                editor.setSelection(editor.text.length)
+            }
+            onView(withText(R.string.editor_tab_api)).perform(click())
+            onView(withId(R.id.apiSearchInput)).perform(replaceText("toast(message)"))
+            onView(withContentDescription("插入 toast(message) 的示例")).perform(click())
+
+            onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
+            val expectedText = "toast('hello');\n$example"
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                assertEquals(expectedText, editor.text.toString())
+                assertEquals(expectedText.length, editor.selectionStart)
+            }
+            onView(withText("已插入示例")).check(matches(isDisplayed()))
+            onView(withText("撤销")).perform(click())
+
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                assertEquals("toast('hello');", editor.text.toString())
+            }
+        }
+    }
+
+    @Test
+    fun insertExampleReplacesSelectionWithoutDuplicateNewlines() {
+        ScriptRepository(context).save(scriptId, "abcXYZdef")
+        val example = apiEntry("toast(message)").example
+            ?: error("toast(message) 缺少示例")
+
+        launch().use { scenario ->
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                editor.setSelection(3, 6)
+            }
+            onView(withText(R.string.editor_tab_api)).perform(click())
+            onView(withId(R.id.apiSearchInput)).perform(replaceText("toast(message)"))
+            onView(withContentDescription("插入 toast(message) 的示例")).perform(click())
+
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                assertEquals("abc\n$example\ndef", editor.text.toString())
+                assertEquals(
+                    3 + 1 + example.length,
+                    editor.selectionStart,
+                )
+            }
+            onView(withText("撤销")).perform(click())
+            scenario.onActivity { activity ->
+                val editor = activity.findViewById<EditText>(R.id.scriptEditor)
+                assertEquals("abcXYZdef", editor.text.toString())
+            }
+        }
+    }
+
+    private fun apiEntry(signature: String): ApiEntry =
+        ApiDocs.sections.flatMap { it.entries }.first { it.signature == signature }
 
     @Test
     fun backToBottomButtonRestoresAutoFollow() {

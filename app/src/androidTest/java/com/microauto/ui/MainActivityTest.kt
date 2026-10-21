@@ -8,6 +8,7 @@ import android.os.PowerManager
 import android.view.View
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -523,6 +524,116 @@ class MainActivityTest {
             Thread.sleep(50)
         }
         fail("条件未在 ${timeoutMs}ms 内满足")
+    }
+
+    @Test
+    fun scriptRowsExposeContextualActionDescriptions() {
+        val repository = ScriptRepository(TestData.context())
+        repository.create("语义脚本", "log(1);")
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val list = activity.findViewById<RecyclerView>(R.id.scriptList)
+                val holder = findHolder(list, "语义脚本") ?: error("脚本行未显示")
+                val more = holder.itemView.findViewById<View>(R.id.moreButton)
+                val run = holder.itemView.findViewById<View>(R.id.btnRunScript)
+                assertEquals("「语义脚本」的更多操作", more.contentDescription.toString())
+                assertEquals("运行「语义脚本」", run.contentDescription.toString())
+            }
+        }
+    }
+
+    @Test
+    fun folderRowsExposeContextualActionDescription() {
+        val repository = ScriptRepository(TestData.context())
+        repository.createFolder("语义文件夹")
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val list = activity.findViewById<RecyclerView>(R.id.scriptList)
+                val holder = findFolderHolder(list, "语义文件夹") ?: error("文件夹行未显示")
+                val more = holder.itemView.findViewById<View>(R.id.folderMore)
+                assertEquals(
+                    "「语义文件夹」的文件夹操作",
+                    more.contentDescription.toString(),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun tutorialHeadingsAreAccessible() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                listOf(
+                    R.id.tutorialQuickStartTitle,
+                    R.id.tutorialFirstScriptTitle,
+                    R.id.tutorialScheduleTitle,
+                    R.id.tutorialFolderTitle,
+                    R.id.tutorialVersionsTitle,
+                    R.id.tutorialSearchTitle,
+                    R.id.tutorialImportExportTitle,
+                    R.id.tutorialLimitsTitle,
+                    R.id.tutorialBuiltinsTitle,
+                ).forEach { id ->
+                    assertTrue(
+                        "教程标题 $id 未标记为 heading",
+                        ViewCompat.isAccessibilityHeading(activity.findViewById(id)),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun runStatusExpandsEmptyStatePadding() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.onActivity {
+                RunState.start("id", null, "空状态", RunSource.MANUAL)
+                RunState.markRunning()
+            }
+            awaitCondition {
+                emptyPaddingPx(scenario) == expectedEmptyPadding(scenario, statusVisible = true)
+            }
+        }
+    }
+
+    private fun emptyPaddingPx(scenario: ActivityScenario<MainActivity>): Int {
+        var padding = 0
+        scenario.onActivity { activity ->
+            padding = activity.findViewById<View>(R.id.emptyState).paddingBottom
+        }
+        return padding
+    }
+
+    private fun expectedEmptyPadding(
+        scenario: ActivityScenario<MainActivity>,
+        statusVisible: Boolean,
+    ): Int {
+        var padding = 0
+        scenario.onActivity { activity ->
+            val density = activity.resources.displayMetrics.density
+            val stackHeight = activity.findViewById<View>(R.id.bottomStack).height
+            val floor = ((if (statusVisible) 176 else 120) * density).toInt()
+            val gap = (24 * density).toInt()
+            padding = maxOf(floor, stackHeight + gap)
+        }
+        return padding
+    }
+
+    private fun findFolderHolder(
+        list: RecyclerView,
+        name: String,
+    ): RecyclerView.ViewHolder? {
+        val adapter = list.adapter ?: return null
+        for (position in 0 until adapter.itemCount) {
+            val holder = list.findViewHolderForAdapterPosition(position) ?: continue
+            val title = holder.itemView.findViewById<TextView>(R.id.folderName)
+                .text
+                ?.toString()
+            if (title == name) return holder
+        }
+        return null
     }
 
     private fun findHolder(

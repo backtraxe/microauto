@@ -64,6 +64,7 @@ object RunLog {
     @Synchronized
     fun recordError(line: Int?, message: String?, expectedStartedAt: Long? = null) {
         val current = _meta.value ?: return
+        if (current.status != RunPhase.STARTING && current.status != RunPhase.RUNNING) return
         if (expectedStartedAt != null && current.startedAt != expectedStartedAt) return
         val updated = current.copy(errorLine = line, errorMessage = message)
         _meta.value = updated

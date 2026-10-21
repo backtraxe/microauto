@@ -87,6 +87,7 @@ class LibraryAdapter(
                 item.count
             )
             binding.root.setOnClickListener { onFolderClick(item.meta) }
+            binding.folderMore.contentDescription = "「${item.meta.name}」的文件夹操作"
             binding.folderMore.setOnClickListener { onFolderMenu(item.meta, it) }
         }
     }
@@ -118,6 +119,7 @@ class LibraryAdapter(
             }
             binding.root.setOnClickListener { onScriptClick(meta) }
             binding.btnRunScript.setOnClickListener { onScriptRun(meta) }
+            binding.moreButton.contentDescription = "「${meta.name}」的更多操作"
             binding.moreButton.setOnClickListener { onScriptMenu(meta, it) }
         }
     }

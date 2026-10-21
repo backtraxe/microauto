@@ -10,7 +10,8 @@ import com.microauto.databinding.ItemVersionBinding
 import com.microauto.script.ScriptVersion
 
 class VersionsAdapter(
-    private val onMenu: (ScriptVersion, View) -> Unit
+    private val onOpen: (ScriptVersion) -> Unit,
+    private val onMenu: (ScriptVersion, View) -> Unit,
 ) : RecyclerView.Adapter<VersionsAdapter.Holder>() {
 
     private var items: List<ScriptVersion> = emptyList()
@@ -38,8 +39,12 @@ class VersionsAdapter(
                 com.microauto.R.string.version_label,
                 version.version
             )
-            binding.versionNote.text = version.note.ifBlank { "无备注" }
+            binding.versionNote.text = version.note.ifBlank {
+                binding.root.context.getString(com.microauto.R.string.version_note_empty)
+            }
             binding.versionTime.text = DateFormats.format(version.createdAt)
+            binding.versionMore.contentDescription = "v${version.version} 的版本操作"
+            binding.root.setOnClickListener { onOpen(version) }
             binding.versionMore.setOnClickListener { onMenu(version, it) }
         }
     }

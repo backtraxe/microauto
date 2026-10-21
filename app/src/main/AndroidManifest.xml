@@ -43,6 +43,10 @@
             android:name=".ui.VersionsActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.VersionPreviewActivity"
+            android:exported="false" />
+
         <service
             android:name=".accessibility.AutomationService"
             android:exported="true"

@@ -17,6 +17,7 @@
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <TextView
+        android:id="@+id/tutorialQuickStartTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
@@ -33,6 +34,7 @@
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <TextView
+        android:id="@+id/tutorialFirstScriptTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
@@ -63,6 +65,7 @@
         android:textSize="13sp" />
 
     <TextView
+        android:id="@+id/tutorialScheduleTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
@@ -79,6 +82,7 @@
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <TextView
+        android:id="@+id/tutorialFolderTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
@@ -95,6 +99,7 @@
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <TextView
+        android:id="@+id/tutorialVersionsTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
@@ -111,6 +116,7 @@
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <TextView
+        android:id="@+id/tutorialSearchTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
@@ -127,6 +133,7 @@
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <TextView
+        android:id="@+id/tutorialImportExportTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
@@ -143,6 +150,7 @@
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <TextView
+        android:id="@+id/tutorialLimitsTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
@@ -159,6 +167,7 @@
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <TextView
+        android:id="@+id/tutorialBuiltinsTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"

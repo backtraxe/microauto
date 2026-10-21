@@ -33,10 +33,10 @@ MicroAuto 是一个非 root、纯本机运行的 Android 界面自动化工具�
 app/src/main/java/com/microauto/
   accessibility/  无障碍服务、节点操作、手势、亮屏/锁屏检测
   api/            脚本可见的原生桥接（AutomationBridge / UiSelector / UiObject）
-  core/           选择器、节点抽象、脚本命名、定时计算（纯 Kotlin，可 JVM 单测）
+  core/           选择器、节点抽象、脚本命名、定时计算、按行 diff（纯 Kotlin，可 JVM 单测）
   schedule/       AlarmManager 定时、开机/时区变化恢复
   script/         Rhino 运行时、脚本仓库、前台服务、日志
-  ui/             脚本列表、编辑页（撤销/查找替换）、版本历史、适配器、语法高亮
+  ui/             脚本列表、编辑页（撤销/查找替换）、版本历史与预览、适配器、语法高亮
 app/src/main/assets/prelude.js   Auto.js 风格的脚本 API 层
 app/src/test/                    JVM 单元测试
 app/src/androidTest/            仪器化测试
@@ -56,12 +56,15 @@ app/src/androidTest/            仪器化测试
 - Rhino 配置：`optimizationLevel = -1`（解释模式），`VERSION_1_8`，作用域使用 `initSafeStandardObjects()`，脚本不能直接访问 `java` / `Packages`。`ScriptSandbox` 通过自定义 `WrapFactory` + 成员白名单包装原生对象，隐藏 `getClass`、`class`、反射、ClassLoader 和 `wait`/`notify` 等 Object 成员。`prelude.js` 保持 ES5 语法，避免 Android 上的兼容问题。
 - 超时/停止：`ScriptEngine` 设置指令观察器（阈值 10,000），`ScriptExecutionGuard` 在纯 JS 死循环中也能检查 deadline 和取消标志；`ScriptRunner.cancel()` 同时置取消标志并中断线程。
 - 单脚本串行：`ScriptService` 与 `ScriptRunner` 都有运行中检查，同一时刻只允许一个脚本；`RunState`/`RunLog` 用 `StateFlow` 供 UI 订阅，`RunState.activeScriptId` 标记当前脚本供首页行内运行状态使用。`ScriptService` 每次运行持有独立 `RunTokenRegistry` token（进程级自增 Long，避免跨 Service 实例碰撞）、startId 和唤醒锁，收尾只处理当前 token，并使用 `stopSelf(startId)`，避免旧运行影响新运行；停止请求必须携带当前 token，未携带或 token 不匹配时忽略（旧版无 token stop 不会误停新运行）。`RunState.activeToken` 供编辑页停止按钮和通知使用。生命周期状态在主线程串行迁移。运行通知（含结果通知和前台服务常驻通知）只带脚本名、通用状态或错误摘要，并设置 `VISIBILITY_SECRET`，不读取日志正文。
-- 运行状态：`RunState.snapshot` 保存 `RunSnapshot`（`RunPhase` 为 STARTING/RUNNING/SUCCESS/FAILED/STOPPED，`RunSource` 为 MANUAL/SCHEDULE/DUMP），`running`/`activeScriptId`/`activeToken` 继续保留兼容旧调用。`ScriptService.start` 接收来源并在接受请求后进入 STARTING，`ScriptRunner` 开始执行时进入 RUNNING，结束按用户停止/成功/失败落 STOPPED/SUCCESS/FAILED；启动服务抛错时调用方用 `RunState.failStart` 落失败，避免状态条卡在启动中。首页状态条（`bottomStack` 内 `runStatusCard`）按阶段显示标题、计时/结果和操作；成功 4 秒、停止 3 秒后自动隐藏，失败保持到用户关闭；App 回到前台时 30 秒内的成功/停止结果会恢复显示。DUMP 来源不在首页显示状态条。状态条出现时脚本列表和教程页的底部留白会按 `bottomStack` 实际高度加 24dp 动态调整（普通字号下限分别为 176dp，隐藏时列表 104dp、教程 120dp），避免大字号下被状态条遮挡。计时每秒只更新 meta，阶段变化才 `announceForAccessibility`。状态迁移通过 `MutableStateFlow.update/getAndUpdate` 做原子阶段检查，后台旧运行携带 `startedAt` 身份，不能覆盖新运行；`dismiss` 也只在身份匹配时清空快照。
+- 运行状态：`RunState.snapshot` 保存 `RunSnapshot`（`RunPhase` 为 STARTING/RUNNING/SUCCESS/FAILED/STOPPED，`RunSource` 为 MANUAL/SCHEDULE/DUMP），`running`/`activeScriptId`/`activeToken` 继续保留兼容旧调用。`ScriptService.start` 接收来源并在接受请求后进入 STARTING，`ScriptRunner` 开始执行时进入 RUNNING，结束按用户停止/成功/失败落 STOPPED/SUCCESS/FAILED；启动服务抛错时调用方用 `RunState.failStart` 落失败，避免状态条卡在启动中。首页状态条（`bottomStack` 内 `runStatusCard`）按阶段显示标题、计时/结果和操作；成功 4 秒、停止 3 秒后自动隐藏，失败保持到用户关闭；App 回到前台时 30 秒内的成功/停止结果会恢复显示。DUMP 来源不在首页显示状态条。状态条出现时脚本列表、教程页和空状态的底部留白会按 `bottomStack` 实际高度加 24dp 动态调整（普通字号下限分别为 176dp，隐藏时列表 104dp、教程/空状态 120dp），避免大字号下被状态条遮挡。计时每秒只更新 meta，阶段变化才 `announceForAccessibility`。状态迁移通过 `MutableStateFlow.update/getAndUpdate` 做原子阶段检查，后台旧运行携带 `startedAt` 身份，不能覆盖新运行；`dismiss` 也只在身份匹配时清空快照。
 - 日志归属：`RunLog.meta` 记录脚本 id/名称、来源、开始/结束时间、`RunPhase` 和错误行/摘要，并持久化到 `SharedPreferences("run_log")`；`ScriptService` 启动时先 `RunLog.clear()` 再 `RunLog.begin(...)`，结束时 `RunLog.complete(phase)`。旧版遗留的 `latest.log` 没有 meta，编辑页按「上次运行日志 / 来源未知」展示；进程重启后残留的 RUNNING/STARTING meta 会用 `latest.log` 的 `lastModified` 归一为 STOPPED（早于 startedAt 时 finishedAt 为空）并重新持久化。`ScriptRunner` 解析 `RhinoException` 的 `lineNumber()`/`sourceName()`，只有 `script.js` 的错误记录可跳转行号；`prelude.js` 错误标记为「内置 API 错误」。结果通知带 `scriptId` 深链到对应脚本的日志 tab，脚本不存在时回退首页。
+- 可访问性：列表行操作按钮的 `contentDescription` 带对象名（脚本/文件夹/版本），不把整行卡片设成单一描述；脚本和文件夹名称、元信息最多两行，卡片最小 64dp；编辑器行号对无障碍隐藏；教程和 API 分组标题使用 `ViewCompat.setAccessibilityHeading`；`fontScale >= 1.3` 时编辑页底部四个操作改为 48dp 图标按钮（运行/停止/看界面/定时，均保留 contentDescription），普通字号保持文字按钮（测试可用 `EditorActivity.EXTRA_COMPACT_ACTIONS` 强制图标模式）。运行状态条只在阶段变化时播报，计时文本不设 live region。
 - 超时：脚本总时限 10 分钟，由指令观察器和 `AutomationBridge` 的桥接调用检查共同保证；`sleep` 会截断到剩余时间。页面必须亮屏且已解锁，否则 `ScriptRunner` 直接拒绝执行。
 - 无障碍：`AutomationService.instance` 持有 `rootInActiveWindow`；选择器 BFS 遍历，最多 2000 个节点、返回 100 个结果，轮询间隔 100ms。点击策略为 `ACTION_CLICK` → 最多 5 层可点击祖先 → 坐标手势。`NodeDump` 生成节点树，`isPassword` 节点的文本和描述都输出为 `<hidden>`。
 - 输入上限：导入、编辑和运行统一使用 `ScriptLimits`：脚本不超过 128 KB（UTF-8）且不超过 20,000 行；导入由 `BoundedTextReader` 流式限长，编辑器输入/粘贴由 `InputFilter` 限长，保存/运行前再次校验，超过时提示并拒绝。巨大文本不会写入 view state（超过 64,000 字符时在 `onSaveInstanceState` 中临时清空），因此这类内容不随旋转保留，旋转后回到最近保存的版本。
 - 编辑器保存：`EditorActivity.saveScript()` 是挂起函数，通过 `Dispatchers.IO` 写仓库；只有成功后才更新 `lastSavedContent` 和副标题，失败/超限保持 dirty。工具栏、发布、运行、看界面、版本、定时和退出确认均通过 `lifecycleScope` 调用。
+- API 速查：编辑页 API tab 使用 `ApiDocs.sections` 和纯函数 `ui/ApiDocsFilter` 过滤，命中范围是分组标题、签名、说明和示例，空分组隐藏；搜索框固定在列表上方，查询在 tab 切换时保留并通过 `onSaveInstanceState` 跨旋转恢复。每张卡片可把示例插入编辑器，按光标/选区前后补换行，并通过 `EditorUndoManager.breakCoalescing()` 保证一次撤销撤回整段。
+- 版本预览：`VersionPreviewActivity` 只读，通过 `ScriptRepository.versions/readVersion` 读取版本，使用 `core/LineDiff` 计算“当前内容 → 版本内容”的按行 LCS（超过 2,000 行跳过差异），预览页只提供恢复操作；恢复仍走 `restoreVersion`，会自动生成恢复前快照。版本列表整行进入预览，空状态可直接发布当前版本。
 - 正则防护：`RegexGuard` 限制 `textMatches` 正则最多 1024 字符、节点文本最多 4096 字符，并静态拒绝“外层无界量词 + 内层无界/可空/变长有界量词”以及无界重复的交替分支；交替分支规则是保守策略（`(ab|cd)+` 也会拒绝），不是完整线性正则引擎。
 - 手势：`GestureController` 把 `dispatchGesture` post 到主线程，并用 `CountDownLatch` 等待回调；脚本线程不可阻塞主线程。
 - 存储：`filesDir/scripts/` 下 `index.json`（脚本元数据）、`folders.json`、`versions.json`、`<uuid>.js`、`versions/<scriptId>/<versionId>.js`。索引和脚本文件通过 `.tmp` + rename 原子写入；`ScriptRepository` 用进程级内存缓存减少磁盘读取，写操作后更新缓存，`clearCache()` 用于测试/恢复。运行日志在 `filesDir/latest.log`（内存最多 20k 字符）。
@@ -97,7 +100,7 @@ app/src/androidTest/            仪器化测试
 
 - JVM 测试：JUnit 4，放在 `app/src/test`，只测试 `core/` 等纯逻辑；文件名 `*Test.kt`。
 - 仪器化测试：`AndroidJUnit4` + `ApplicationProvider`，每个用例先调用 `TestData.reset()` 清空 `filesDir/scripts`、旧 `script.js` 和 `schedule` 偏好。
-- UI 测试使用 Espresso；已有 `MainActivityTest`、`EditorActivityTest`、`VersionsActivityTest`。
+- UI 测试使用 Espresso；已有 `MainActivityTest`、`EditorActivityTest`、`VersionsActivityTest`、`VersionPreviewActivityTest`。
 - 新增纯逻辑时补 JVM 测试；涉及 `ScriptRepository`、定时偏好、Activity 行为时补 `androidTest`。
 
 ## 文档同步

@@ -78,13 +78,34 @@ class RunNotificationsInstrumentedTest {
         assertEquals("签到脚本 · 屏幕已锁定", notificationText(skipped))
 
         RunNotifications.notifyFailure(context, "签到脚本", "无法启动运行服务")
-        val failure = awaitNotification(1003, "签到脚本 · 无法启动运行服务")
+        val failure = awaitNotification(1004, "签到脚本 · 无法启动运行服务")
         assertEquals(
             Notification.VISIBILITY_SECRET,
             NotificationCompat.getVisibility(failure.notification)
         )
         assertEquals("签到脚本 · 无法启动运行服务", notificationText(failure))
         assertFalse(notificationText(failure).contains("secret-screen-text"))
+    }
+
+    @Test
+    fun busyAndWaitingDoNotOverwriteOtherAlerts() {
+        RunNotifications.notifySkipped(context, "签到脚本", "屏幕已锁定")
+        RunNotifications.notifyFailure(context, "签到脚本", "无法启动运行服务")
+        RunNotifications.notifyBusy(context, "签到脚本", "已有脚本在运行")
+        RunNotifications.notifyWaiting(context, "签到脚本", "屏幕未解锁，稍后重试")
+
+        val skipped = awaitNotification(1003, "签到脚本 · 屏幕已锁定")
+        val failure = awaitNotification(1004, "签到脚本 · 无法启动运行服务")
+        val busy = awaitNotification(1005, "签到脚本 · 已有脚本在运行")
+        val waiting = awaitNotification(1006, "签到脚本 · 屏幕未解锁，稍后重试")
+
+        listOf(skipped, failure, busy, waiting).forEach { notification ->
+            assertEquals(
+                Notification.VISIBILITY_SECRET,
+                NotificationCompat.getVisibility(notification.notification)
+            )
+            assertTrue(NotificationCompat.getLocalOnly(notification.notification))
+        }
     }
 
     private fun notificationText(notification: StatusBarNotification): String =

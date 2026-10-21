@@ -12,7 +12,10 @@ import com.microauto.ui.MainActivity
 object RunNotifications {
     const val CHANNEL_ID = "script_run"
     private const val RESULT_NOTIFICATION_ID = 1002
-    private const val ALERT_NOTIFICATION_ID = 1003
+    private const val SKIPPED_NOTIFICATION_ID = 1003
+    private const val FAILURE_NOTIFICATION_ID = 1004
+    private const val BUSY_NOTIFICATION_ID = 1005
+    private const val WAITING_NOTIFICATION_ID = 1006
     private const val MAX_TEXT_CHARS = 200
 
     fun ensureChannel(context: Context) {
@@ -53,7 +56,7 @@ object RunNotifications {
     fun notifySkipped(context: Context, scriptName: String, reason: String) {
         notify(
             context = context,
-            id = ALERT_NOTIFICATION_ID,
+            id = SKIPPED_NOTIFICATION_ID,
             title = "定时任务已跳过",
             text = "$scriptName · $reason",
             contentIntent = Intent(context, MainActivity::class.java),
@@ -64,7 +67,7 @@ object RunNotifications {
     fun notifyFailure(context: Context, scriptName: String, message: String) {
         notify(
             context = context,
-            id = ALERT_NOTIFICATION_ID,
+            id = FAILURE_NOTIFICATION_ID,
             title = "定时任务失败",
             text = "$scriptName · $message",
             contentIntent = Intent(context, MainActivity::class.java),
@@ -75,7 +78,7 @@ object RunNotifications {
     fun notifyBusy(context: Context, scriptName: String, reason: String) {
         notify(
             context = context,
-            id = ALERT_NOTIFICATION_ID,
+            id = BUSY_NOTIFICATION_ID,
             title = "脚本未启动",
             text = "$scriptName · $reason",
             contentIntent = Intent(context, MainActivity::class.java),
@@ -86,7 +89,7 @@ object RunNotifications {
     fun notifyWaiting(context: Context, scriptName: String, reason: String) {
         notify(
             context = context,
-            id = ALERT_NOTIFICATION_ID,
+            id = WAITING_NOTIFICATION_ID,
             title = "定时任务等待中",
             text = "$scriptName · $reason",
             contentIntent = Intent(context, MainActivity::class.java),

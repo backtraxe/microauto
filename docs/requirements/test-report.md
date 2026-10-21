@@ -911,3 +911,33 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 | 完整 A 轮 | — | 84/84 | `run-emulator-tests.sh` |
 | 完整 B 轮 | — | 84/84 | `run-emulator-tests.sh`，未见 flaky |
 | 最终 lint/assemble | — | — | 0 errors / 1 warning；`MicroAuto-0.10.0.apk` |
+
+## 12. 功能补全验收（R3 / R4 / R6 / R7 / R8，2026-10-21）
+
+本批按 `docs/requirements/feature-ui.md` 完成剩余 P1/P2 需求：R3 全局运行状态条、R4 日志归属与错误行定位、R6 API 速查搜索与插入、R7 版本预览与空状态发布、R8 可访问性与大字号适配；同时清理第四批复核留下的 6 项低风险问题。
+
+### 12.1 结果汇总
+
+| 项 | 结果 |
+| --- | --- |
+| JVM 单元测试 | **240/240 通过**（32 个 suite） |
+| 仪器化测试（API 35） | **129/129 通过** |
+| Lint | 0 errors，1 warning（既有 `core-ktx` 版本提示） |
+| assembleDebug | 成功 |
+| logcat | `FATAL EXCEPTION` 0、`ANR` 0、`WindowLeaked` 0、`RootViewWithoutFocusException` 0、`TransactionTooLargeException` 0；应用侧 `requestLayout` improper 0（仅 SystemUI 1 条） |
+
+### 12.2 关键验收结论
+
+- **R3**：RunSnapshot 状态机完整，状态条显示脚本名/计时/来源，成功 4 秒、停止 3 秒自动隐藏，失败保持到关闭；30 秒恢复窗口只作用于成功/停止；计时不设 live region，阶段变化才播报。复核发现并修复“失败结果 30 秒后被丢弃”的高危问题。
+- **R4**：RunLog meta 持久化，编辑器区分外来日志；Rhino 错误只对 `script.js` 记录可跳转行号；错误卡跳转、日志自动跟随/回到底部、复制/清空、结果通知深链均通过。外来日志与 DUMP（无 scriptId）不提供跳转，避免误导。
+- **R6**：搜索框固定、大小写不敏感过滤 title/signature/description/example、计数/空状态/清空、旋转恢复；插入按光标/选区补换行，一次撤销可撤回整段。
+- **R7**：`LineDiff` 按行 LCS，超过 2,000 行跳过；预览显示备注/时间/行数/±N 与行号 diff，相同内容或损坏文件禁用恢复；恢复确认后自动快照并刷新列表；版本空状态可直接发布。
+- **R8**：脚本/文件夹/版本操作按钮 contentDescription 带对象名；名称/元信息最多两行、卡片最小 64dp；行号对无障碍隐藏；教程/API 标题为 heading；`fontScale >= 1.3` 时编辑页底部改为 48dp 图标按钮。
+
+### 12.3 已知低风险残留
+
+- `RunState.complete/stop` 未携带 `startedAt` 身份，依赖 Service 主线程串行收尾；当前生产调用点均在主线程。
+- `ScriptRunner.run` 在 STARTING 极窄窗口内停止时仍可能继续执行，为既有生命周期问题，未在本批扩大处理。
+- 2 倍字体、TalkBack 实际播报、通知 PendingIntent 真机点击属于手工验收项；自动化已覆盖语义属性与主要流程。
+- 版本预览的 diff 计算在 Activity 主线程执行，2,000 行边界下低端设备可能有可感知卡顿。
+- R6 插入按钮未做重复点击节流。

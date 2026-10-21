@@ -145,6 +145,9 @@ class ScriptService : Service() {
             RunState.complete(RunPhase.FAILED)
             RunLog.recordError(null, message, startedAt)
             RunLog.complete(RunPhase.FAILED)
+            if (source == RunSource.SCHEDULE) {
+                RunNotifications.notifyFailure(this, scriptName, message)
+            }
             stopForeground(STOP_FOREGROUND_REMOVE)
             RunLog.append("[错误] $message")
             stopSelf(latestStartId)
