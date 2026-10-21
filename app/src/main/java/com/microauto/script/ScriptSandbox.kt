@@ -66,7 +66,12 @@ object ScriptSandbox {
         "toString"
     )
 
-    private val cache = ConcurrentHashMap<Class<*>, Set<String>>()
+    private data class MemberKey(
+        val type: Class<*>,
+        val extraClasses: Set<Class<*>>
+    )
+
+    private val cache = ConcurrentHashMap<MemberKey, Set<String>>()
 
     val production = SandboxWrapFactory()
 
@@ -76,12 +81,16 @@ object ScriptSandbox {
 
     fun allowedMembers(type: Class<*>, extraClasses: Set<Class<*>> = emptySet()): Set<String> {
         if (type !in allowedClasses && type !in extraClasses) return emptySet()
-        return cache.getOrPut(type) {
+        return cache.getOrPut(MemberKey(type, extraClasses)) {
             val names = LinkedHashSet<String>()
             var current: Class<*>? = type
             while (current != null && current != Any::class.java) {
                 current.declaredMethods
-                    .filter { Modifier.isPublic(it.modifiers) && !Modifier.isStatic(it.modifiers) }
+                    .filter {
+                        Modifier.isPublic(it.modifiers) &&
+                            !Modifier.isStatic(it.modifiers) &&
+                            '$' !in it.name
+                    }
                     .forEach { method ->
                         names += method.name
                         beanPropertyName(method.name)?.let { names += it }
@@ -146,6 +155,17 @@ private class SandboxNativeJavaObject(
     override fun put(name: String, start: Scriptable, value: Any?) = Unit
 
     override fun delete(name: String) = Unit
+
+    override fun getDefaultValue(typeHint: Class<*>?): Any {
+        val value = unwrap()
+        if (value is String || value is Number || value is Boolean || value is Char) {
+            return value
+        }
+        return when (typeHint) {
+            null, String::class.java, Any::class.java -> ""
+            else -> super.getDefaultValue(typeHint)
+        }
+    }
 }
 
 private class SandboxNativeJavaArray(
@@ -166,4 +186,15 @@ private class SandboxNativeJavaArray(
     override fun put(name: String, start: Scriptable, value: Any?) = Unit
 
     override fun delete(name: String) = Unit
+
+    override fun getDefaultValue(typeHint: Class<*>?): Any {
+        val value = unwrap()
+        if (value is String || value is Number || value is Boolean || value is Char) {
+            return value
+        }
+        return when (typeHint) {
+            null, String::class.java, Any::class.java -> ""
+            else -> super.getDefaultValue(typeHint)
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.microauto.script
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.microauto.schedule.SchedulePrefs
 import com.microauto.schedule.ScriptScheduler
 import java.io.File
@@ -72,5 +73,47 @@ object ScriptBackup {
         } finally {
             temp.deleteRecursively()
         }
+    }
+
+    /**
+     * 进程在换入新目录后、完成加载前被杀时，恢复上次的 scripts 目录。
+     * 必须在 ScriptRepository 初始化之前调用。
+     */
+    fun recoverInterruptedRestore(context: Context): Boolean = synchronized(restoreLock) {
+        val filesDir = context.filesDir
+        val current = File(filesDir, "scripts")
+        val previous = File(filesDir, "scripts-before-restore")
+        when {
+            !previous.exists() -> false
+            isUsableScriptsDir(current) -> {
+                previous.deleteRecursively()
+                false
+            }
+
+            !isUsableScriptsDir(previous) -> {
+                previous.deleteRecursively()
+                false
+            }
+
+            else -> {
+                if (current.exists()) current.deleteRecursively()
+                val restored = previous.renameTo(current)
+                if (restored) {
+                    ScriptRepository.clearCache()
+                    Log.i("MicroAuto", "已恢复上次中断的备份")
+                }
+                restored
+            }
+        }
+    }
+
+    private fun isUsableScriptsDir(dir: File): Boolean {
+        if (!dir.isDirectory) return false
+        val index = File(dir, "index.json")
+        if (!index.isFile) return false
+        return runCatching {
+            val parsed = ScriptIndexCodec.parseScripts(index.readText())
+            !parsed.corrupt && parsed.entries.isNotEmpty()
+        }.getOrDefault(false)
     }
 }

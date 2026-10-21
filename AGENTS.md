@@ -60,7 +60,7 @@ app/src/androidTest/            仪器化测试
 - 无障碍：`AutomationService.instance` 持有 `rootInActiveWindow`；选择器 BFS 遍历，最多 2000 个节点、返回 100 个结果，轮询间隔 100ms。点击策略为 `ACTION_CLICK` → 最多 5 层可点击祖先 → 坐标手势。
 - 手势：`GestureController` 把 `dispatchGesture` post 到主线程，并用 `CountDownLatch` 等待回调；脚本线程不可阻塞主线程。
 - 存储：`filesDir/scripts/` 下 `index.json`（脚本元数据）、`folders.json`、`versions.json`、`<uuid>.js`、`versions/<scriptId>/<versionId>.js`。索引和脚本文件通过 `.tmp` + rename 原子写入；`ScriptRepository` 用进程级内存缓存减少磁盘读取，写操作后更新缓存，`clearCache()` 用于测试/恢复。运行日志在 `filesDir/latest.log`（内存最多 20k 字符）。
-- 备份：`ScriptBackup` 将整个 `scripts/` 打包为 zip（`ScriptBackupCodec` 负责纯文件编解码、条目白名单、zip-slip 校验、ID/清单完整性校验和 50 MB 上限）；恢复分两阶段：先校验临时目录，再替换；旧目录保留到新仓库加载成功，失败会回滚，成功后取消所有定时。`ScriptPaths` 负责 ID 格式与 canonical path 包含校验。
+- 备份：`ScriptBackup` 将整个 `scripts/` 打包为 zip（`ScriptBackupCodec` 负责纯文件编解码、条目白名单、zip-slip 校验、ID/清单完整性校验和 50 MB 上限）；恢复分两阶段：先校验临时目录，再替换；旧目录保留到新仓库加载成功，失败会回滚，成功后取消所有定时。`ScriptPaths` 负责 ID 格式与 canonical path 包含校验。`MicroAutoApp` 启动时先调用 `ScriptBackup.recoverInterruptedRestore`，处理恢复过程中被强杀留下的 `scripts-before-restore`。
 - 定时：每个脚本可单独定时，配置以 JSON 存在 `SharedPreferences` 名 `schedule`（旧版单条配置会自动迁移）。`ScriptScheduler` 为每条定时分配 `alarmId`，daily requestCode 为 `10000 + alarmId`，retry 为 `1000000 + alarmId`；无精确闹钟权限时降级为非精确闹钟。`BootReceiver` 在开机、改时间、改时区后重注册；息屏/锁屏时 `ScheduleTriggerPolicy` 会在 1 小时内每 2 分钟重试，超窗后通知跳过。
 
 ## 修改脚本 API 的固定流程

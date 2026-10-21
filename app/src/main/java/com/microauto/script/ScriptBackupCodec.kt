@@ -15,8 +15,8 @@ object ScriptBackupCodec {
     private const val MAX_TOTAL_BYTES = 50L * 1024 * 1024
     private const val MAX_INDEX_BYTES = 2L * 1024 * 1024
     private const val MAX_ENTRY_BYTES = 5L * 1024 * 1024
-    private const val MAX_ENTRIES = 10_000
     private const val MAX_RECORDS = 10_000
+    private const val MAX_ENTRIES = 2 * MAX_RECORDS + 3
     private const val BUFFER_SIZE = 8 * 1024
 
     fun export(sourceDir: File, output: OutputStream): Int {

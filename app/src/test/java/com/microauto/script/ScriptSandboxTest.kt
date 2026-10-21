@@ -276,6 +276,34 @@ class ScriptSandboxTest {
     }
 
     @Test
+    fun defaultConversionDoesNotLeakClassName() {
+        val (result, _) = run(
+            """
+            var r = [];
+            r.push(String(native).indexOf("AutomationBridge"));
+            r.push(String(native.selector()).indexOf("UiSelector"));
+            r.join("|");
+            """.trimIndent()
+        )
+
+        assertEquals("-1|-1", result)
+    }
+
+    @Test
+    fun allowlistCacheSeparatesExtraClasses() {
+        val extra = setOf(ExtraApi::class.java)
+        val withExtra = ScriptSandbox.allowedMembers(ExtraApi::class.java, extra)
+        val withoutExtra = ScriptSandbox.allowedMembers(ExtraApi::class.java)
+
+        assertTrue("hello" in withExtra)
+        assertTrue(withoutExtra.isEmpty())
+    }
+
+    private class ExtraApi {
+        fun hello(): String = "hi"
+    }
+
+    @Test
     fun caughtJavaExceptionIsSandboxed() {
         val (result, _) = run(
             """

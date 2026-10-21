@@ -236,4 +236,35 @@ class ScriptBackupRestoreTest {
         assertTrue(SchedulePrefs.schedules(context).isEmpty())
         assertTrue(SchedulePrefs.pendingScriptIds(context).isEmpty())
     }
+
+    @Test
+    fun recoversInterruptedRestoreBeforeRepositoryInit() {
+        val script = repository.create("旧脚本", "log('old');")
+        val current = File(context.filesDir, "scripts")
+        val previous = File(context.filesDir, "scripts-before-restore")
+        assertTrue(current.renameTo(previous))
+        current.mkdirs()
+        File(current, "index.json").writeText("[]")
+
+        assertTrue(ScriptBackup.recoverInterruptedRestore(context))
+
+        val restored = ScriptRepository(context)
+        assertEquals("log('old');", restored.read(script.id))
+        assertFalse(previous.exists())
+    }
+
+    @Test
+    fun keepsValidCurrentAndDropsStalePrevious() {
+        val script = repository.create("新脚本", "log('new');")
+        val previous = File(context.filesDir, "scripts-before-restore")
+        previous.mkdirs()
+        File(previous, "index.json").writeText(
+            """[{"id":"old","name":"旧脚本","createdAt":1,"updatedAt":2}]"""
+        )
+        File(previous, "old.js").writeText("log('old');")
+
+        assertFalse(ScriptBackup.recoverInterruptedRestore(context))
+        assertFalse(previous.exists())
+        assertEquals("新脚本", ScriptRepository(context).find(script.id)?.name)
+    }
 }

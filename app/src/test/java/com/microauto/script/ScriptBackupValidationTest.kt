@@ -121,7 +121,7 @@ class ScriptBackupValidationTest {
     fun rejectsTooManyEntries() {
         val entries = buildList {
             add("index.json" to "[]")
-            repeat(10_000) { add("s$it.js" to "") }
+            repeat(20_003) { add("s$it.js" to "") }
         }
         val error = assertThrows(IllegalArgumentException::class.java) {
             import(entries)

@@ -234,3 +234,21 @@ adb shell am start -n com.microauto/.ui.MainActivity
 | 仪器化第 1 轮 | — | 52，1 失败 | `../` 条目在 Android 14+ 抛 `ZipException`，用例期望 `IllegalArgumentException` |
 | 仪器化第 2 轮 | — | 52，1 失败 | 改为期望 `RuntimeException` 仍不匹配（`ZipException` 是受检 `IOException`） |
 | 仪器化第 3 轮 | — | 52/52 | 改为接受 `Exception` 并断言数据不变；最终结果 |
+
+## 8. 修复复核（v0.8.1）
+
+本轮已修复 5.1–5.4、5.6：
+
+- 5.1（中）：新增 `ScriptBackup.recoverInterruptedRestore(context)`，在 `MicroAutoApp.onCreate` 中先于 `ScriptRepository` 初始化调用；当前目录不可用且 `scripts-before-restore` 有效时自动回滚，当前有效时清理残留旧目录。新增仪器化测试 `recoversInterruptedRestoreBeforeRepositoryInit`、`keepsValidCurrentAndDropsStalePrevious`。
+- 5.2（低）：`SandboxNativeJavaObject.getDefaultValue` 对 String/Number/Boolean/Char 返回底层值，其余对象返回空串；`String(native)` 不再泄露实现类名，新增 `defaultConversionDoesNotLeakClassName`。
+- 5.3（低）：`allowedMembers` 缓存键改为 `(Class, extraClasses)`，新增 `allowlistCacheSeparatesExtraClasses`。
+- 5.4（低）：`MAX_ENTRIES` 调整为 `2 * MAX_RECORDS + 3`，不再误拒 10,000 条脚本的合法备份；`rejectsTooManyEntries` 同步更新。
+- 5.6（提示）：白名单过滤含 `$` 的编译器生成方法，internal getter 不再暴露。
+
+验证结果（修复后）：
+
+- JVM 单元测试 **129/129**
+- API 35 仪器化测试 **54/54**
+- Lint 0 error（仅既有 `core-ktx` 版本提示），`assembleDebug` 通过
+- 5.5（空备份策略）保持产品取舍，未改动
+- 结论：原报告中的中级/低级问题已关闭，无已知阻断项

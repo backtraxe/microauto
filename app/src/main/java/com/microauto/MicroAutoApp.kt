@@ -3,6 +3,7 @@ package com.microauto
 import android.app.Application
 import com.microauto.script.RunLog
 import com.microauto.script.RunNotifications
+import com.microauto.script.ScriptBackup
 import com.microauto.script.ScriptRepository
 
 class MicroAutoApp : Application() {
@@ -10,6 +11,7 @@ class MicroAutoApp : Application() {
         super.onCreate()
         RunLog.init(this)
         RunNotifications.ensureChannel(this)
+        ScriptBackup.recoverInterruptedRestore(this)
         ScriptRepository(this).ensureInitialized()
     }
 }
