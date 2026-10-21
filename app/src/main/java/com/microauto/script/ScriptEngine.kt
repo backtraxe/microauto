@@ -28,9 +28,14 @@ object ScriptEngine {
             rhino.optimizationLevel = -1
             rhino.languageVersion = RhinoContext.VERSION_1_8
             rhino.instructionObserverThreshold = OBSERVER_THRESHOLD
+            ScriptSandbox.install(rhino)
             val scope = ScriptScope.create(rhino)
             val bridge = AutomationBridge(service, context.applicationContext)
-            ScriptableObject.putProperty(scope, "native", RhinoContext.javaToJS(bridge, scope))
+            ScriptableObject.putProperty(
+                scope,
+                "native",
+                rhino.wrapFactory.wrap(rhino, scope, bridge, AutomationBridge::class.java)
+            )
             rhino.evaluateString(scope, prelude(context), "prelude.js", 1, null)
             rhino.evaluateString(scope, script, "script.js", 1, null)
         } finally {

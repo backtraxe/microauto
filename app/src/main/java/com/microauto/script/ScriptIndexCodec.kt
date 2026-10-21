@@ -12,7 +12,7 @@ data class IndexParse<T>(
 object ScriptIndexCodec {
     fun parseScripts(text: String): IndexParse<ScriptMeta> = parse(text) { obj ->
         ScriptMeta(
-            id = obj.requiredString("id"),
+            id = obj.requiredId("id"),
             name = obj.requiredString("name"),
             createdAt = obj.optLong("createdAt"),
             updatedAt = obj.optLong("updatedAt"),
@@ -38,7 +38,7 @@ object ScriptIndexCodec {
 
     fun parseFolders(text: String): IndexParse<FolderMeta> = parse(text) { obj ->
         FolderMeta(
-            id = obj.requiredString("id"),
+            id = obj.requiredId("id"),
             name = obj.requiredString("name"),
             createdAt = obj.optLong("createdAt")
         )
@@ -60,8 +60,8 @@ object ScriptIndexCodec {
 
     fun parseVersions(text: String): IndexParse<ScriptVersion> = parse(text) { obj ->
         ScriptVersion(
-            id = obj.requiredString("id"),
-            scriptId = obj.requiredString("scriptId"),
+            id = obj.requiredId("id"),
+            scriptId = obj.requiredId("scriptId"),
             version = obj.getInt("version"),
             note = obj.optString("note"),
             createdAt = obj.optLong("createdAt")
@@ -105,6 +105,12 @@ object ScriptIndexCodec {
     private fun JSONObject.requiredString(key: String): String {
         val value = getString(key)
         require(value.isNotBlank()) { "$key is blank" }
+        return value
+    }
+
+    private fun JSONObject.requiredId(key: String): String {
+        val value = requiredString(key)
+        require(ScriptPaths.isValidId(value)) { "$key is invalid" }
         return value
     }
 }

@@ -15,10 +15,13 @@ import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.android.material.appbar.MaterialToolbar
 import com.microauto.R
 import com.microauto.TestData
 import com.microauto.script.ScriptRepository
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -94,6 +97,126 @@ class EditorActivityTest {
             onView(withId(R.id.action_save)).perform(click())
             Thread.sleep(300)
             assertEquals("toast('saved');", ScriptRepository(context).read(scriptId))
+        }
+    }
+
+    @Test
+    fun subtitleAndSaveMenuFollowDirtyState() {
+        launch().use { scenario ->
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertTrue(toolbar.subtitle.toString().startsWith("已保存 · "))
+                assertFalse(toolbar.menu.findItem(R.id.action_save).isEnabled)
+            }
+
+            onView(withId(R.id.scriptEditor)).perform(replaceText("log('changed');"))
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertEquals("未保存的修改", toolbar.subtitle.toString())
+                assertTrue(toolbar.menu.findItem(R.id.action_save).isEnabled)
+            }
+
+            onView(withId(R.id.action_save)).perform(click())
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertTrue(toolbar.subtitle.toString().startsWith("已保存 · "))
+                assertFalse(toolbar.menu.findItem(R.id.action_save).isEnabled)
+            }
+            assertEquals("log('changed');", ScriptRepository(context).read(scriptId))
+        }
+    }
+
+    @Test
+    fun saveFailureKeepsDirtyState() {
+        launch().use { scenario ->
+            ScriptRepository(context).delete(scriptId)
+            onView(withId(R.id.scriptEditor)).perform(replaceText("log('unsaved');"))
+            onView(withId(R.id.action_save)).perform(click())
+            onView(withText("保存失败，脚本可能已被删除")).check(matches(isDisplayed()))
+
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertEquals("未保存的修改", toolbar.subtitle.toString())
+                assertTrue(toolbar.menu.findItem(R.id.action_save).isEnabled)
+            }
+        }
+    }
+
+    @Test
+    fun renamesFromEditorMenuWithInlineValidation() {
+        launch().use { scenario ->
+            openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
+            onView(withText("重命名")).perform(click())
+            onView(withId(R.id.renameInput)).perform(replaceText(""))
+            closeSoftKeyboard()
+            onView(withText("确定")).perform(click())
+            onView(withText("名称不能为空")).check(matches(isDisplayed()))
+
+            onView(withId(R.id.renameInput)).perform(replaceText("新名称"))
+            closeSoftKeyboard()
+            onView(withText("确定")).perform(click())
+
+            onView(withText("新名称")).check(matches(isDisplayed()))
+            assertEquals("新名称", ScriptRepository(context).find(scriptId)?.name)
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertEquals("新名称", toolbar.title.toString())
+            }
+        }
+    }
+
+    @Test
+    fun emptyRenameKeepsDialogOpenAndTitleUnchanged() {
+        launch().use { scenario ->
+            openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
+            onView(withText("重命名")).perform(click())
+            onView(withId(R.id.renameInput)).perform(replaceText("   "))
+            closeSoftKeyboard()
+            onView(withText("确定")).perform(click())
+
+            onView(withText("名称不能为空")).check(matches(isDisplayed()))
+            onView(withId(R.id.renameInput)).check(matches(isDisplayed()))
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertEquals("UI 测试脚本", toolbar.title.toString())
+            }
+            assertEquals("UI 测试脚本", ScriptRepository(context).find(scriptId)?.name)
+        }
+    }
+
+    @Test
+    fun renameToExistingNameAppendsSuffix() {
+        ScriptRepository(context).create("已有名称", "log('other');")
+        launch().use { scenario ->
+            openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
+            onView(withText("重命名")).perform(click())
+            onView(withId(R.id.renameInput)).perform(replaceText("已有名称"))
+            closeSoftKeyboard()
+            onView(withText("确定")).perform(click())
+
+            assertEquals("已有名称 (2)", ScriptRepository(context).find(scriptId)?.name)
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertEquals("已有名称 (2)", toolbar.title.toString())
+            }
+        }
+    }
+
+    @Test
+    fun dirtyStateClearsWhenContentRevertsToSaved() {
+        launch().use { scenario ->
+            onView(withId(R.id.scriptEditor)).perform(replaceText("log('changed');"))
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertEquals("未保存的修改", toolbar.subtitle.toString())
+            }
+
+            onView(withId(R.id.scriptEditor)).perform(replaceText("toast('hello');"))
+            scenario.onActivity { activity ->
+                val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
+                assertTrue(toolbar.subtitle.toString().startsWith("已保存 · "))
+                assertFalse(toolbar.menu.findItem(R.id.action_save).isEnabled)
+            }
         }
     }
 

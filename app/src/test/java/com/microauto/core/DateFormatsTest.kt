@@ -27,4 +27,12 @@ class DateFormatsTest {
             DateFormats.format(epoch, ZoneId.of("Asia/Shanghai"))
         )
     }
+
+    @Test
+    fun formatsTimeWithLocalZoneOffset() {
+        val epoch = Instant.parse("2026-10-21T04:57:33Z").toEpochMilli()
+
+        assertEquals("04:57", DateFormats.formatTime(epoch, ZoneOffset.UTC))
+        assertEquals("12:57", DateFormats.formatTime(epoch, ZoneId.of("Asia/Shanghai")))
+    }
 }

@@ -39,13 +39,16 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.tabs.TabLayout
 import com.microauto.R
 import com.microauto.accessibility.AccessibilityUtils
+import com.microauto.core.DateFormats
 import com.microauto.core.FindMatch
 import com.microauto.core.FindReplaceEngine
 import com.microauto.core.ScheduleTime
 import com.microauto.databinding.ActivityEditorBinding
+import com.microauto.databinding.DialogRenameBinding
 import com.microauto.databinding.DialogVersionNoteBinding
 import com.microauto.databinding.SheetFindReplaceBinding
 import com.microauto.databinding.SheetScheduleBinding
@@ -89,6 +92,7 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var scriptId: String
     private lateinit var scriptName: String
     private var lastSavedContent = ""
+    private var lastSavedAt = 0L
     private var highlighter: JsSyntaxHighlighter? = null
     private var lastLineCount = 0
     private var undoManager: EditorUndoManager? = null
@@ -126,6 +130,7 @@ class EditorActivity : AppCompatActivity() {
             return
         }
         scriptName = meta.name
+        lastSavedAt = meta.updatedAt.takeIf { it > 0 } ?: System.currentTimeMillis()
         binding = ActivityEditorBinding.inflate(layoutInflater)
         setContentView(binding.root)
         EdgeToEdge.apply(this, binding.root)
@@ -141,7 +146,6 @@ class EditorActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.action_save -> {
                     saveScript()
-                    toast("已保存")
                     true
                 }
 
@@ -175,6 +179,11 @@ class EditorActivity : AppCompatActivity() {
                     true
                 }
 
+                R.id.action_rename -> {
+                    showRenameDialog()
+                    true
+                }
+
                 else -> false
             }
         }
@@ -182,6 +191,7 @@ class EditorActivity : AppCompatActivity() {
         lastSavedContent = repository.read(scriptId).orEmpty()
         binding.scriptEditor.setText(lastSavedContent)
         setupEditor()
+        updateSaveState()
         undoManager = EditorUndoManager(binding.scriptEditor) { updateUndoRedo() }
         undoManager?.start()
         updateScheduleSummary()
@@ -440,6 +450,7 @@ class EditorActivity : AppCompatActivity() {
 
             override fun afterTextChanged(s: Editable?) {
                 binding.scriptEditor.post { updateLineNumbers() }
+                updateSaveState()
                 if (findDialog?.isShowing == true) {
                     refreshFindMatches(fromCursor = false)
                 }
@@ -577,7 +588,7 @@ class EditorActivity : AppCompatActivity() {
 
     private fun bindActions() {
         binding.btnRun.setOnClickListener {
-            saveScript()
+            if (!saveScript()) return@setOnClickListener
             if (!AccessibilityUtils.isEnabled(this)) {
                 toast("请先开启无障碍服务")
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -638,9 +649,83 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveScript() {
-        lastSavedContent = binding.scriptEditor.text.toString()
-        repository.save(scriptId, lastSavedContent)
+    private fun saveScript(): Boolean {
+        val content = binding.scriptEditor.text.toString()
+        if (content == lastSavedContent) {
+            updateSaveState()
+            return true
+        }
+        val saved = runCatching { repository.save(scriptId, content) }.getOrDefault(false)
+        if (!saved) {
+            Snackbar.make(binding.root, "保存失败，脚本可能已被删除", Snackbar.LENGTH_LONG).show()
+            updateSaveState()
+            return false
+        }
+        lastSavedContent = content
+        lastSavedAt = System.currentTimeMillis()
+        updateSaveState()
+        binding.root.announceForAccessibility("已保存")
+        return true
+    }
+
+    private fun updateSaveState() {
+        if (!::binding.isInitialized) return
+        val dirty = binding.scriptEditor.text.toString() != lastSavedContent
+        binding.toolbar.subtitle = if (dirty) {
+            "未保存的修改"
+        } else {
+            "已保存 · ${DateFormats.formatTime(lastSavedAt)}"
+        }
+        binding.toolbar.setSubtitleTextColor(
+            MaterialColors.getColor(
+                binding.toolbar,
+                if (dirty) {
+                    androidx.appcompat.R.attr.colorPrimary
+                } else {
+                    com.google.android.material.R.attr.colorOnSurfaceVariant
+                }
+            )
+        )
+        binding.toolbar.menu.findItem(R.id.action_save)?.apply {
+            isEnabled = dirty
+            contentDescription = if (dirty) "保存" else "已保存"
+        }
+    }
+
+    private fun showRenameDialog() {
+        val dialogBinding = DialogRenameBinding.inflate(layoutInflater)
+        dialogBinding.renameLayout.hint = getString(R.string.rename_script_hint)
+        dialogBinding.renameInput.setText(scriptName)
+        dialogBinding.renameInput.setSelection(scriptName.length)
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("重命名")
+            .setView(dialogBinding.root)
+            .setPositiveButton("确定", null)
+            .setNegativeButton("取消", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+                .setOnClickListener {
+                    val name = dialogBinding.renameInput.text?.toString().orEmpty()
+                    if (name.isBlank()) {
+                        dialogBinding.renameLayout.error = "名称不能为空"
+                        return@setOnClickListener
+                    }
+                    if (repository.rename(scriptId, name)) {
+                        scriptName = repository.find(scriptId)?.name ?: name
+                        binding.toolbar.title = scriptName
+                        dialog.dismiss()
+                        Snackbar.make(
+                            binding.root,
+                            "已重命名为「$scriptName」",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        dialogBinding.renameLayout.error = "重命名失败"
+                    }
+                }
+        }
+        dialog.show()
     }
 
     private fun showPublishDialog() {
@@ -649,7 +734,7 @@ class EditorActivity : AppCompatActivity() {
             .setTitle("发布版本")
             .setView(dialogBinding.root)
             .setPositiveButton("发布") { _, _ ->
-                saveScript()
+                if (!saveScript()) return@setPositiveButton
                 val version = repository.publishVersion(
                     scriptId,
                     dialogBinding.versionNoteInput.text.toString()
@@ -665,7 +750,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun openVersions() {
-        saveScript()
+        if (!saveScript()) return
         versionsLauncher.launch(
             Intent(this, VersionsActivity::class.java)
                 .putExtra(VersionsActivity.EXTRA_SCRIPT_ID, scriptId)
@@ -675,10 +760,12 @@ class EditorActivity : AppCompatActivity() {
     private fun reloadScript() {
         val content = repository.read(scriptId).orEmpty()
         lastSavedContent = content
+        lastSavedAt = repository.find(scriptId)?.updatedAt ?: System.currentTimeMillis()
         binding.scriptEditor.setText(content)
         binding.scriptEditor.setSelection(content.length)
         updateLineNumbers()
         binding.scriptEditor.post { updateLineNumbers() }
+        updateSaveState()
         undoManager?.reset()
     }
 
@@ -870,8 +957,7 @@ class EditorActivity : AppCompatActivity() {
             .setTitle("未保存的修改")
             .setMessage("是否保存当前脚本？")
             .setPositiveButton("保存并退出") { _, _ ->
-                saveScript()
-                finish()
+                if (saveScript()) finish()
             }
             .setNegativeButton("放弃修改") { _, _ -> finish() }
             .setNeutralButton("取消", null)

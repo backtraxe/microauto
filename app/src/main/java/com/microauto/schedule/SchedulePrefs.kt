@@ -130,6 +130,23 @@ object SchedulePrefs {
         }
     }
 
+    fun clearAll(context: Context) {
+        val prefs = prefs(context)
+        prefs.edit {
+            remove(KEY_SCHEDULES)
+            remove(KEY_NEXT_ALARM_ID)
+            remove(LEGACY_KEY_ENABLED)
+            remove(LEGACY_KEY_HOUR)
+            remove(LEGACY_KEY_MINUTE)
+            remove(LEGACY_KEY_SCRIPT_ID)
+            prefs.all.keys
+                .filter { it.startsWith(PENDING_PREFIX) }
+                .forEach { remove(it) }
+            remove(LEGACY_KEY_PENDING_SCRIPT_ID)
+            remove(LEGACY_KEY_PENDING_DEADLINE)
+        }
+    }
+
     private fun clearPending(prefs: SharedPreferences, scriptId: String) {
         prefs.edit { remove(PENDING_PREFIX + scriptId) }
     }

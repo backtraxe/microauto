@@ -187,8 +187,19 @@ class PreludeSmokeTest {
         val rhino = Context.enter()
         try {
             rhino.optimizationLevel = -1
+            rhino.wrapFactory = SandboxWrapFactory(
+                setOf(
+                    FakeNative::class.java,
+                    FakeSelector::class.java,
+                    FakeUiObject::class.java
+                )
+            )
             val scope = rhino.initSafeStandardObjects()
-            ScriptableObject.putProperty(scope, "native", Context.javaToJS(fake, scope))
+            ScriptableObject.putProperty(
+                scope,
+                "native",
+                rhino.wrapFactory.wrap(rhino, scope, fake, FakeNative::class.java)
+            )
             rhino.evaluateString(scope, prelude(), "prelude.js", 1, null)
             rhino.evaluateString(scope, script, "test.js", 1, null)
         } finally {

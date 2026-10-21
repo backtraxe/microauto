@@ -804,7 +804,9 @@ class MainActivity : AppCompatActivity() {
     private fun confirmRestore(uri: Uri) {
         MaterialAlertDialogBuilder(this)
             .setTitle("恢复备份")
-            .setMessage("会覆盖当前所有脚本、文件夹和版本历史，确定继续？")
+            .setMessage(
+                "会覆盖当前所有脚本、文件夹和版本历史；已有定时会被取消，需要重新开启。确定继续？"
+            )
             .setPositiveButton("恢复") { _, _ -> restoreAll(uri) }
             .setNegativeButton("取消", null)
             .show()

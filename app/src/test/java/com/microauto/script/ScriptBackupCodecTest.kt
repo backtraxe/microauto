@@ -46,7 +46,9 @@ class ScriptBackupCodecTest {
     @Test
     fun skipsTemporaryAndCorruptBackupFiles() {
         val source = temp.newFolder("source")
-        File(source, "index.json").writeText("[]")
+        File(source, "index.json").writeText(
+            """[{"id":"a","name":"签到","createdAt":1,"updatedAt":2}]"""
+        )
         File(source, "a.js").writeText("log(1);")
         File(source, "index.json.tmp").writeText("tmp")
         File(source, "index.json.corrupt-1").writeText("corrupt")

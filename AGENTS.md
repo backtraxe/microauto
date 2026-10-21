@@ -53,14 +53,14 @@ app/src/androidTest/            仪器化测试
 ## 运行时机制
 
 - 执行链路：`ScriptService`（前台服务，`specialUse` 类型）→ 后台线程 → `ScriptRunner` → `ScriptEngine`（Rhino）→ 先执行 `assets/prelude.js`，再执行用户脚本。`ScriptEngine` 通过 `native` 对象注入 `AutomationBridge`。
-- Rhino 配置：`optimizationLevel = -1`（解释模式），`VERSION_1_8`，作用域使用 `initSafeStandardObjects()`，脚本不能直接访问 `java` / `Packages`。`prelude.js` 保持 ES5 语法，避免 Android 上的兼容问题。
+- Rhino 配置：`optimizationLevel = -1`（解释模式），`VERSION_1_8`，作用域使用 `initSafeStandardObjects()`，脚本不能直接访问 `java` / `Packages`。`ScriptSandbox` 通过自定义 `WrapFactory` + 成员白名单包装原生对象，隐藏 `getClass`、`class`、反射、ClassLoader 和 `wait`/`notify` 等 Object 成员。`prelude.js` 保持 ES5 语法，避免 Android 上的兼容问题。
 - 超时/停止：`ScriptEngine` 设置指令观察器（阈值 10,000），`ScriptExecutionGuard` 在纯 JS 死循环中也能检查 deadline 和取消标志；`ScriptRunner.cancel()` 同时置取消标志并中断线程。
 - 单脚本串行：`ScriptService` 与 `ScriptRunner` 都有运行中检查，同一时刻只允许一个脚本；`RunState`/`RunLog` 用 `StateFlow` 供 UI 订阅。
 - 超时：脚本总时限 10 分钟，由指令观察器和 `AutomationBridge` 的桥接调用检查共同保证；`sleep` 会截断到剩余时间。页面必须亮屏且已解锁，否则 `ScriptRunner` 直接拒绝执行。
 - 无障碍：`AutomationService.instance` 持有 `rootInActiveWindow`；选择器 BFS 遍历，最多 2000 个节点、返回 100 个结果，轮询间隔 100ms。点击策略为 `ACTION_CLICK` → 最多 5 层可点击祖先 → 坐标手势。
 - 手势：`GestureController` 把 `dispatchGesture` post 到主线程，并用 `CountDownLatch` 等待回调；脚本线程不可阻塞主线程。
 - 存储：`filesDir/scripts/` 下 `index.json`（脚本元数据）、`folders.json`、`versions.json`、`<uuid>.js`、`versions/<scriptId>/<versionId>.js`。索引和脚本文件通过 `.tmp` + rename 原子写入；`ScriptRepository` 用进程级内存缓存减少磁盘读取，写操作后更新缓存，`clearCache()` 用于测试/恢复。运行日志在 `filesDir/latest.log`（内存最多 20k 字符）。
-- 备份：`ScriptBackup` 将整个 `scripts/` 打包为 zip（`ScriptBackupCodec` 负责纯文件编解码、zip-slip 校验和 50 MB 上限）；恢复前把当前目录改名为 `scripts-before-restore`，失败会回滚。
+- 备份：`ScriptBackup` 将整个 `scripts/` 打包为 zip（`ScriptBackupCodec` 负责纯文件编解码、条目白名单、zip-slip 校验、ID/清单完整性校验和 50 MB 上限）；恢复分两阶段：先校验临时目录，再替换；旧目录保留到新仓库加载成功，失败会回滚，成功后取消所有定时。`ScriptPaths` 负责 ID 格式与 canonical path 包含校验。
 - 定时：每个脚本可单独定时，配置以 JSON 存在 `SharedPreferences` 名 `schedule`（旧版单条配置会自动迁移）。`ScriptScheduler` 为每条定时分配 `alarmId`，daily requestCode 为 `10000 + alarmId`，retry 为 `1000000 + alarmId`；无精确闹钟权限时降级为非精确闹钟。`BootReceiver` 在开机、改时间、改时区后重注册；息屏/锁屏时 `ScheduleTriggerPolicy` 会在 1 小时内每 2 分钟重试，超窗后通知跳过。
 
 ## 修改脚本 API 的固定流程

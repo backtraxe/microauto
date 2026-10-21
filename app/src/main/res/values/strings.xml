@@ -12,6 +12,7 @@
     <string name="action_find_replace">查找替换</string>
     <string name="action_publish">发布版本</string>
     <string name="action_versions">版本历史</string>
+    <string name="action_rename">重命名</string>
     <string name="action_new_script">新建脚本</string>
     <string name="action_import_script">导入脚本</string>
     <string name="action_new_folder">新建文件夹</string>

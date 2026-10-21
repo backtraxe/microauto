@@ -122,7 +122,7 @@ toast("Hello MicroAuto");
 log("当前包名: " + currentPackage());
 ```
 
-「保存」只保存脚本，不运行；「运行」会先保存再执行；「停止」会中断当前脚本。
+「保存」只保存脚本，不运行；「运行」会先保存再执行；「停止」会中断当前脚本。工具栏副标题会显示「已保存 · HH:mm」或「未保存的修改」，保存按钮在内容未变化时禁用。右上角菜单 →「重命名」可以直接修改当前脚本名称，空名称会在对话框内提示。
 
 编辑器支持撤销/重做（工具栏按钮或 `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`）和查找替换（右上角菜单 →「查找替换」，支持区分大小写、上一个/下一个、替换和全部替换）。
 
@@ -135,7 +135,7 @@ log("当前包名: " + currentPackage());
 - 脚本保存在应用内部，每个脚本一个独立文件。
 - 删除脚本时，如果它设置了定时，会同时取消该脚本的定时。
 - 每个脚本可以单独设置定时；修改一个脚本的定时不会影响其他脚本。
-- 首页菜单 →「备份全部脚本」可以把脚本、文件夹和版本历史导出为 zip；「恢复备份」会覆盖当前数据。
+- 首页菜单 →「备份全部脚本」可以把脚本、文件夹和版本历史导出为 zip；「恢复备份」会覆盖当前数据。恢复前会校验索引、脚本文件和版本文件是否齐全；恢复成功后会取消所有定时，需要重新为脚本开启定时。
 - 索引文件损坏时会自动备份原文件、尽量恢复有效记录，并在启动后提示。
 
 ### 5.2 版本管理
@@ -483,6 +483,8 @@ Android 13+ 对侧载应用默认限制无障碍。到「设置 → 应用 → M
 - 遵守目标 App 的用户协议。自动签到本身可能违反协议，账号风险由使用者承担。
 - 不要用于银行、支付、政务、医疗等高风险账号。
 - 脚本在本机运行，MicroAuto 不上传脚本和日志。
+- 脚本只能调用白名单内的 MicroAuto API：Rhino 安全作用域不暴露 `java` / `Packages`，原生对象上的 `getClass`、`class`、反射、ClassLoader 和 `wait`/`notify` 等成员也不可用。
+- 只从可信来源导入脚本和备份。备份恢复会覆盖脚本，并取消现有定时。
 - 不要把包含 Cookie、Token、手机号等敏感信息的脚本发到公开仓库。
 
 ## 13. 二次开发
@@ -513,7 +515,7 @@ app/src/main/assets/prelude.js   Auto.js 风格 API
    ./gradlew :app:testDebugUnitTest :app:assembleDebug
    ```
 
-脚本运行在 Rhino 的安全作用域（`initSafeStandardObjects`）里，不能直接访问 `java` / `Packages`。需要系统能力时，请通过 `AutomationBridge` 暴露。
+脚本运行在 Rhino 的安全作用域（`initSafeStandardObjects`）里，不能直接访问 `java` / `Packages`。原生对象通过 `ScriptSandbox` 的成员白名单暴露，`getClass`、`class`、反射、ClassLoader 和 `wait`/`notify` 等成员不可访问。需要系统能力时，请通过 `AutomationBridge` 暴露。
 
 提交后 GitHub Actions 会自动跑测试、Lint、构建，并在 API 35 模拟器上运行仪器化测试。
 

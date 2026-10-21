@@ -97,7 +97,7 @@ class ScriptRepository(context: Context) {
     }
 
     fun read(id: String): String? {
-        val file = File(dir, "$id.js")
+        val file = ScriptPaths.scriptFile(dir, id) ?: return null
         if (!file.exists()) return null
         return runCatching { file.readText() }.getOrNull()
     }
@@ -105,10 +105,11 @@ class ScriptRepository(context: Context) {
     fun save(id: String, content: String): Boolean = locked {
         val metas = readIndex().toMutableList()
         val index = metas.indexOfFirst { it.id == id }
-        if (index < 0) {
+        val file = ScriptPaths.scriptFile(dir, id)
+        if (index < 0 || file == null) {
             false
         } else {
-            writeAtomically(File(dir, "$id.js"), content)
+            writeAtomically(file, content)
             metas[index] = metas[index].copy(updatedAt = System.currentTimeMillis())
             writeIndex(metas)
             true
@@ -143,11 +144,12 @@ class ScriptRepository(context: Context) {
     fun delete(id: String): Boolean = locked {
         val metas = readIndex().toMutableList()
         val index = metas.indexOfFirst { it.id == id }
-        if (index < 0) {
+        val file = ScriptPaths.scriptFile(dir, id)
+        if (index < 0 || file == null) {
             false
         } else {
             metas.removeAt(index)
-            File(dir, "$id.js").delete()
+            file.delete()
             writeIndex(metas)
             removeVersionsOf(id)
             true
@@ -155,7 +157,8 @@ class ScriptRepository(context: Context) {
     }
 
     fun publishVersion(scriptId: String, note: String): ScriptVersion? = locked {
-        if (find(scriptId) == null) {
+        val versionDir = ScriptPaths.versionDir(versionsDir, scriptId)
+        if (find(scriptId) == null || versionDir == null) {
             null
         } else {
             val content = read(scriptId)
@@ -165,17 +168,22 @@ class ScriptRepository(context: Context) {
                 val existing = readVersions().filter { it.scriptId == scriptId }
                 val version = (existing.maxOfOrNull { it.version } ?: 0) + 1
                 val id = UUID.randomUUID().toString()
-                val versionDir = File(versionsDir, scriptId).apply { mkdirs() }
-                writeAtomically(File(versionDir, "$id.js"), content)
-                val record = ScriptVersion(
-                    id = id,
-                    scriptId = scriptId,
-                    version = version,
-                    note = note.trim(),
-                    createdAt = System.currentTimeMillis()
-                )
-                writeVersions(readVersions() + record)
-                record
+                val versionFile = ScriptPaths.versionFile(versionsDir, scriptId, id)
+                if (versionFile == null) {
+                    null
+                } else {
+                    versionDir.mkdirs()
+                    writeAtomically(versionFile, content)
+                    val record = ScriptVersion(
+                        id = id,
+                        scriptId = scriptId,
+                        version = version,
+                        note = note.trim(),
+                        createdAt = System.currentTimeMillis()
+                    )
+                    writeVersions(readVersions() + record)
+                    record
+                }
             }
         }
     }
@@ -187,7 +195,7 @@ class ScriptRepository(context: Context) {
 
     fun readVersion(versionId: String): String? {
         val version = readVersions().firstOrNull { it.id == versionId } ?: return null
-        val file = File(versionsDir, "${version.scriptId}/${version.id}.js")
+        val file = ScriptPaths.versionFile(versionsDir, version.scriptId, version.id) ?: return null
         if (!file.exists()) return null
         return runCatching { file.readText() }.getOrNull()
     }
@@ -200,14 +208,15 @@ class ScriptRepository(context: Context) {
         } else {
             val metas = readIndex().toMutableList()
             val index = metas.indexOfFirst { it.id == version.scriptId }
-            if (index < 0) {
+            val target = ScriptPaths.scriptFile(dir, version.scriptId)
+            if (index < 0 || target == null) {
                 false
             } else {
                 val current = read(version.scriptId)
                 if (current != null && current != content) {
                     publishVersion(version.scriptId, "恢复前自动快照")
                 }
-                writeAtomically(File(dir, "${version.scriptId}.js"), content)
+                writeAtomically(target, content)
                 metas[index] = metas[index].copy(updatedAt = System.currentTimeMillis())
                 writeIndex(metas)
                 true
@@ -222,18 +231,19 @@ class ScriptRepository(context: Context) {
             false
         } else {
             val version = versions.removeAt(index)
-            File(versionsDir, "${version.scriptId}/${version.id}.js").delete()
+            ScriptPaths.versionFile(versionsDir, version.scriptId, version.id)?.delete()
             writeVersions(versions)
             true
         }
     }
 
     private fun removeVersionsOf(scriptId: String) {
+        if (!ScriptPaths.isValidId(scriptId)) return
         val versions = readVersions()
         versions.filter { it.scriptId == scriptId }.forEach {
-            File(versionsDir, "${it.scriptId}/${it.id}.js").delete()
+            ScriptPaths.versionFile(versionsDir, it.scriptId, it.id)?.delete()
         }
-        File(versionsDir, scriptId).deleteRecursively()
+        ScriptPaths.versionDir(versionsDir, scriptId)?.deleteRecursively()
         writeVersions(versions.filterNot { it.scriptId == scriptId })
     }
 

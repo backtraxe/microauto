@@ -44,4 +44,9 @@
         android:id="@+id/action_versions"
         android:title="@string/action_versions"
         app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_rename"
+        android:title="@string/action_rename"
+        app:showAsAction="never" />
 </menu>

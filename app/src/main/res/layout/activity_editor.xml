@@ -14,10 +14,13 @@
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
+            android:layout_height="64dp"
+            android:minHeight="?attr/actionBarSize"
             app:navigationIcon="@drawable/ic_arrow_back"
             app:navigationIconTint="?attr/colorOnSurface"
-            app:titleTextAppearance="?attr/textAppearanceTitleLarge" />
+            app:subtitleTextAppearance="?attr/textAppearanceBodySmall"
+            app:subtitleTextColor="?attr/colorOnSurfaceVariant"
+            app:titleTextAppearance="?attr/textAppearanceTitleMedium" />
 
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/editorTabs"
