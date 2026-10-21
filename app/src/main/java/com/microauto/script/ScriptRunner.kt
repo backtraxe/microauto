@@ -27,7 +27,6 @@ object ScriptRunner {
         cancelRequested = false
         Thread.interrupted()
         currentThread = Thread.currentThread()
-        RunState.setRunning(true)
         val startedAt = System.currentTimeMillis()
         RunLog.append("▶ ${timestamp()} 开始执行")
         try {
@@ -62,7 +61,6 @@ object ScriptRunner {
             ScriptExecutionGuard.clear()
             running = false
             currentThread = null
-            RunState.setRunning(false)
         }
     }
 

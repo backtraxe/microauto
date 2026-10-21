@@ -32,6 +32,7 @@ import org.hamcrest.Matchers.not
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Assume
 import org.junit.Before
 import org.junit.Test
@@ -164,6 +165,7 @@ class EditorActivityTest {
         launch().use { scenario ->
             setTextIgnoringFilters(scenario, large)
             onView(withId(R.id.action_save)).perform(click())
+            Thread.sleep(200)
 
             onView(withText(containsString("保存失败：脚本超过 128 KB")))
                 .check(matches(isDisplayed()))
@@ -277,12 +279,23 @@ class EditorActivityTest {
         }
     }
 
+    private fun awaitCondition(timeoutMs: Long = 3_000, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (condition()) return
+            Thread.sleep(50)
+        }
+        fail("条件未在 ${timeoutMs}ms 内满足")
+    }
+
     @Test
     fun saveMenuPersistsContent() {
         launch().use {
             onView(withId(R.id.scriptEditor)).perform(replaceText("toast('saved');"))
             onView(withId(R.id.action_save)).perform(click())
-            Thread.sleep(300)
+            awaitCondition {
+                ScriptRepository(context).read(scriptId) == "toast('saved');"
+            }
             assertEquals("toast('saved');", ScriptRepository(context).read(scriptId))
         }
     }
@@ -304,6 +317,9 @@ class EditorActivityTest {
             }
 
             onView(withId(R.id.action_save)).perform(click())
+            awaitCondition {
+                ScriptRepository(context).read(scriptId) == "log('changed');"
+            }
             scenario.onActivity { activity ->
                 val toolbar = activity.findViewById<MaterialToolbar>(R.id.toolbar)
                 assertTrue(toolbar.subtitle.toString().startsWith("已保存 · "))
@@ -319,6 +335,7 @@ class EditorActivityTest {
             ScriptRepository(context).delete(scriptId)
             onView(withId(R.id.scriptEditor)).perform(replaceText("log('unsaved');"))
             onView(withId(R.id.action_save)).perform(click())
+            Thread.sleep(300)
             onView(withText("保存失败，脚本可能已被删除")).check(matches(isDisplayed()))
 
             scenario.onActivity { activity ->
@@ -326,6 +343,64 @@ class EditorActivityTest {
                 assertEquals("未保存的修改", toolbar.subtitle.toString())
                 assertTrue(toolbar.menu.findItem(R.id.action_save).isEnabled)
             }
+        }
+    }
+
+    @Test
+    fun runDoesNotStartWhenSaveFails() {
+        Assume.assumeFalse(AccessibilityUtils.isEnabled(context))
+        launch().use {
+            ScriptRepository(context).delete(scriptId)
+            onView(withId(R.id.scriptEditor)).perform(replaceText("log('new');"))
+            onView(withId(R.id.btnRun)).perform(click())
+            Thread.sleep(300)
+
+            onView(withText("保存失败，脚本可能已被删除")).check(matches(isDisplayed()))
+            onView(withText("需要开启无障碍服务")).check(doesNotExist())
+        }
+    }
+
+    @Test
+    fun scheduleSheetDoesNotOpenWhenSaveFails() {
+        launch().use {
+            ScriptRepository(context).delete(scriptId)
+            onView(withId(R.id.scriptEditor)).perform(replaceText("log('new');"))
+            onView(withId(R.id.btnSchedule)).perform(click())
+            Thread.sleep(300)
+
+            onView(withText("保存失败，脚本可能已被删除")).check(matches(isDisplayed()))
+            onView(withId(R.id.scheduleTime)).check(doesNotExist())
+        }
+    }
+
+    @Test
+    fun publishDoesNotCreateVersionWhenSaveFails() {
+        launch().use {
+            ScriptRepository(context).delete(scriptId)
+            onView(withId(R.id.scriptEditor)).perform(replaceText("log('new');"))
+            openActionBarOverflowOrOptionsMenu(ApplicationProvider.getApplicationContext())
+            onView(withText("发布版本")).perform(click())
+            onView(withId(R.id.versionNoteInput)).perform(replaceText("失败版本"))
+            onView(withText("发布")).perform(click())
+            Thread.sleep(400)
+
+            onView(withText("保存失败，脚本可能已被删除")).check(matches(isDisplayed()))
+            assertTrue(ScriptRepository(context).versions(scriptId).isEmpty())
+        }
+    }
+
+    @Test
+    fun exitConfirmationKeepsEditorWhenSaveFails() {
+        launch().use {
+            ScriptRepository(context).delete(scriptId)
+            onView(withId(R.id.scriptEditor)).perform(replaceText("log('new');"))
+            closeSoftKeyboard()
+            pressBack()
+            onView(withText("保存并退出")).perform(click())
+            Thread.sleep(400)
+
+            onView(withText("保存失败，脚本可能已被删除")).check(matches(isDisplayed()))
+            onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
         }
     }
 
@@ -445,6 +520,9 @@ class EditorActivityTest {
             onView(withText("发布版本")).perform(click())
             onView(withId(R.id.versionNoteInput)).perform(replaceText("第一版"))
             onView(withText("发布")).perform(click())
+            awaitCondition {
+                ScriptRepository(context).versions(scriptId).isNotEmpty()
+            }
             val versions = ScriptRepository(context).versions(scriptId)
             assertEquals(1, versions.size)
             assertEquals("第一版", versions[0].note)

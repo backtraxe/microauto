@@ -10,18 +10,26 @@ object RunState {
     private val _activeScriptId = MutableStateFlow<String?>(null)
     val activeScriptId: StateFlow<String?> = _activeScriptId
 
-    fun start(scriptId: String?) {
+    private val _activeToken = MutableStateFlow<Long?>(null)
+    val activeToken: StateFlow<Long?> = _activeToken
+
+    fun start(scriptId: String?, token: Long? = null) {
         _activeScriptId.value = scriptId
+        _activeToken.value = token
         _running.value = true
     }
 
     fun setRunning(value: Boolean) {
         _running.value = value
-        if (!value) _activeScriptId.value = null
+        if (!value) {
+            _activeScriptId.value = null
+            _activeToken.value = null
+        }
     }
 
     fun finish() {
         _activeScriptId.value = null
+        _activeToken.value = null
         _running.value = false
     }
 }

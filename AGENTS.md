@@ -55,10 +55,11 @@ app/src/androidTest/            仪器化测试
 - 执行链路：`ScriptService`（前台服务，`specialUse` 类型）→ 后台线程 → `ScriptRunner` → `ScriptEngine`（Rhino）→ 先执行 `assets/prelude.js`，再执行用户脚本。`ScriptEngine` 通过 `native` 对象注入 `AutomationBridge`。
 - Rhino 配置：`optimizationLevel = -1`（解释模式），`VERSION_1_8`，作用域使用 `initSafeStandardObjects()`，脚本不能直接访问 `java` / `Packages`。`ScriptSandbox` 通过自定义 `WrapFactory` + 成员白名单包装原生对象，隐藏 `getClass`、`class`、反射、ClassLoader 和 `wait`/`notify` 等 Object 成员。`prelude.js` 保持 ES5 语法，避免 Android 上的兼容问题。
 - 超时/停止：`ScriptEngine` 设置指令观察器（阈值 10,000），`ScriptExecutionGuard` 在纯 JS 死循环中也能检查 deadline 和取消标志；`ScriptRunner.cancel()` 同时置取消标志并中断线程。
-- 单脚本串行：`ScriptService` 与 `ScriptRunner` 都有运行中检查，同一时刻只允许一个脚本；`RunState`/`RunLog` 用 `StateFlow` 供 UI 订阅，`RunState.activeScriptId` 标记当前脚本供首页行内运行状态使用。运行通知（含结果通知和前台服务常驻通知）只带脚本名和通用状态，并设置 `VISIBILITY_SECRET`，不读取日志正文。
+- 单脚本串行：`ScriptService` 与 `ScriptRunner` 都有运行中检查，同一时刻只允许一个脚本；`RunState`/`RunLog` 用 `StateFlow` 供 UI 订阅，`RunState.activeScriptId` 标记当前脚本供首页行内运行状态使用。`ScriptService` 每次运行持有独立 `RunTokenRegistry` token、startId 和唤醒锁，收尾只处理当前 token，并使用 `stopSelf(startId)`，避免旧运行影响新运行；停止请求必须携带当前 token，未携带或 token 不匹配时忽略（旧版无 token stop 不会误停新运行）。`RunState.activeToken` 供编辑页停止按钮和通知使用。生命周期状态在主线程串行迁移。运行通知（含结果通知和前台服务常驻通知）只带脚本名和通用状态，并设置 `VISIBILITY_SECRET`，不读取日志正文。
 - 超时：脚本总时限 10 分钟，由指令观察器和 `AutomationBridge` 的桥接调用检查共同保证；`sleep` 会截断到剩余时间。页面必须亮屏且已解锁，否则 `ScriptRunner` 直接拒绝执行。
 - 无障碍：`AutomationService.instance` 持有 `rootInActiveWindow`；选择器 BFS 遍历，最多 2000 个节点、返回 100 个结果，轮询间隔 100ms。点击策略为 `ACTION_CLICK` → 最多 5 层可点击祖先 → 坐标手势。`NodeDump` 生成节点树，`isPassword` 节点的文本和描述都输出为 `<hidden>`。
 - 输入上限：导入、编辑和运行统一使用 `ScriptLimits`：脚本不超过 128 KB（UTF-8）且不超过 20,000 行；导入由 `BoundedTextReader` 流式限长，编辑器输入/粘贴由 `InputFilter` 限长，保存/运行前再次校验，超过时提示并拒绝。巨大文本不会写入 view state（超过 64,000 字符时在 `onSaveInstanceState` 中临时清空），因此这类内容不随旋转保留，旋转后回到最近保存的版本。
+- 编辑器保存：`EditorActivity.saveScript()` 是挂起函数，通过 `Dispatchers.IO` 写仓库；只有成功后才更新 `lastSavedContent` 和副标题，失败/超限保持 dirty。工具栏、发布、运行、看界面、版本、定时和退出确认均通过 `lifecycleScope` 调用。
 - 正则防护：`RegexGuard` 限制 `textMatches` 正则最多 1024 字符、节点文本最多 4096 字符，并静态拒绝“外层无界量词 + 内层无界/可空/变长有界量词”以及无界重复的交替分支；交替分支规则是保守策略（`(ab|cd)+` 也会拒绝），不是完整线性正则引擎。
 - 手势：`GestureController` 把 `dispatchGesture` post 到主线程，并用 `CountDownLatch` 等待回调；脚本线程不可阻塞主线程。
 - 存储：`filesDir/scripts/` 下 `index.json`（脚本元数据）、`folders.json`、`versions.json`、`<uuid>.js`、`versions/<scriptId>/<versionId>.js`。索引和脚本文件通过 `.tmp` + rename 原子写入；`ScriptRepository` 用进程级内存缓存减少磁盘读取，写操作后更新缓存，`clearCache()` 用于测试/恢复。运行日志在 `filesDir/latest.log`（内存最多 20k 字符）。

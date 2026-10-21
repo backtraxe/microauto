@@ -64,7 +64,11 @@ import com.microauto.script.RunLog
 import com.microauto.script.RunState
 import com.microauto.script.ScriptRepository
 import com.microauto.script.ScriptService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.util.Locale
 
 class EditorActivity : AppCompatActivity() {
@@ -104,6 +108,7 @@ class EditorActivity : AppCompatActivity() {
     private var awaitingAccessibilityRun = false
     private var lastInputLimitNoticeAt = 0L
     private var scriptInputFilter: InputFilter? = null
+    private val saveMutex = Mutex()
     private var highlighter: JsSyntaxHighlighter? = null
     private var lastLineCount = 0
     private var undoManager: EditorUndoManager? = null
@@ -169,7 +174,7 @@ class EditorActivity : AppCompatActivity() {
         binding.toolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.action_save -> {
-                    saveScript()
+                    lifecycleScope.launch { saveScript() }
                     true
                 }
 
@@ -717,41 +722,58 @@ class EditorActivity : AppCompatActivity() {
 
     private fun bindActions() {
         binding.btnRun.setOnClickListener {
-            if (!saveScript()) return@setOnClickListener
-            if (!AccessibilityUtils.isEnabled(this)) {
-                showAccessibilityRequiredDialog()
-                return@setOnClickListener
+            lifecycleScope.launch {
+                val content = binding.scriptEditor.text.toString()
+                if (!saveScript(content)) return@launch
+                if (!AccessibilityUtils.isEnabled(this@EditorActivity)) {
+                    showAccessibilityRequiredDialog()
+                    return@launch
+                }
+                // Re-read after the async save so edits made while saving are
+                // not silently replaced by an older snapshot.
+                runCurrentScript(binding.scriptEditor.text.toString())
             }
-            runCurrentScript()
         }
         binding.btnStop.setOnClickListener {
-            ScriptService.stop(this)
+            RunState.activeToken.value?.let { token ->
+                ScriptService.stop(this, token)
+            }
         }
         binding.btnDump.setOnClickListener {
-            if (!AccessibilityUtils.isEnabled(this)) {
-                toast("请先开启无障碍服务")
-                return@setOnClickListener
+            lifecycleScope.launch {
+                val content = binding.scriptEditor.text.toString()
+                if (!saveScript(content)) return@launch
+                if (!AccessibilityUtils.isEnabled(this@EditorActivity)) {
+                    toast("请先开启无障碍服务")
+                    return@launch
+                }
+                ensureNotificationPermission()
+                runCatching {
+                    ScriptService.start(
+                        this@EditorActivity,
+                        null,
+                        "看界面",
+                        "toast(\"5 秒内切到目标界面\"); sleep(5000); dump();"
+                    )
+                }.onFailure {
+                    Snackbar.make(
+                        binding.root,
+                        "启动失败：${it.message}",
+                        Snackbar.LENGTH_LONG
+                    ).show()
+                }
+                showLogTab()
             }
-            ensureNotificationPermission()
-            runCatching {
-                ScriptService.start(
-                    this,
-                    null,
-                    "看界面",
-                    "toast(\"5 秒内切到目标界面\"); sleep(5000); dump();"
-                )
-            }.onFailure {
-                Snackbar.make(binding.root, "启动失败：${it.message}", Snackbar.LENGTH_LONG).show()
-            }
-            showLogTab()
         }
         binding.btnSchedule.setOnClickListener {
-            showScheduleSheet()
+            lifecycleScope.launch {
+                if (!saveScript()) return@launch
+                showScheduleSheet()
+            }
         }
     }
 
-    private fun runCurrentScript() {
-        val content = binding.scriptEditor.text.toString()
+    private fun runCurrentScript(content: String) {
         ScriptLimits.scriptError(content)?.let { message ->
             Snackbar.make(binding.root, "无法运行：$message", Snackbar.LENGTH_LONG).show()
             return
@@ -822,32 +844,34 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveScript(): Boolean {
-        val content = binding.scriptEditor.text.toString()
-        ScriptLimits.scriptError(content)?.let { message ->
+    private suspend fun saveScript(content: String? = null): Boolean = saveMutex.withLock {
+        val target = content ?: binding.scriptEditor.text.toString()
+        ScriptLimits.scriptError(target)?.let { message ->
             Snackbar.make(
                 binding.root,
                 "保存失败：$message",
                 Snackbar.LENGTH_LONG
             ).show()
             updateSaveState()
-            return false
+            return@withLock false
         }
-        if (content == lastSavedContent) {
+        if (target == lastSavedContent) {
             updateSaveState()
-            return true
+            return@withLock true
         }
-        val saved = runCatching { repository.save(scriptId, content) }.getOrDefault(false)
+        val saved = withContext(Dispatchers.IO) {
+            runCatching { repository.save(scriptId, target) }.getOrDefault(false)
+        }
         if (!saved) {
             Snackbar.make(binding.root, "保存失败，脚本可能已被删除", Snackbar.LENGTH_LONG).show()
             updateSaveState()
-            return false
+            return@withLock false
         }
-        lastSavedContent = content
+        lastSavedContent = target
         lastSavedAt = System.currentTimeMillis()
         updateSaveState()
         binding.root.announceForAccessibility("已保存")
-        return true
+        true
     }
 
     private fun updateSaveState() {
@@ -918,15 +942,20 @@ class EditorActivity : AppCompatActivity() {
             .setTitle("发布版本")
             .setView(dialogBinding.root)
             .setPositiveButton("发布") { _, _ ->
-                if (!saveScript()) return@setPositiveButton
-                val version = repository.publishVersion(
-                    scriptId,
-                    dialogBinding.versionNoteInput.text.toString()
-                )
-                if (version != null) {
-                    toast("已发布 v${version.version}")
-                } else {
-                    toast("发布失败")
+                lifecycleScope.launch {
+                    val content = binding.scriptEditor.text.toString()
+                    if (!saveScript(content)) return@launch
+                    val version = withContext(Dispatchers.IO) {
+                        repository.publishVersion(
+                            scriptId,
+                            dialogBinding.versionNoteInput.text.toString()
+                        )
+                    }
+                    if (version != null) {
+                        toast("已发布 v${version.version}")
+                    } else {
+                        toast("发布失败")
+                    }
                 }
             }
             .setNegativeButton("取消", null)
@@ -934,11 +963,13 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun openVersions() {
-        if (!saveScript()) return
-        versionsLauncher.launch(
-            Intent(this, VersionsActivity::class.java)
-                .putExtra(VersionsActivity.EXTRA_SCRIPT_ID, scriptId)
-        )
+        lifecycleScope.launch {
+            if (!saveScript()) return@launch
+            versionsLauncher.launch(
+                Intent(this@EditorActivity, VersionsActivity::class.java)
+                    .putExtra(VersionsActivity.EXTRA_SCRIPT_ID, scriptId)
+            )
+        }
     }
 
     private fun reloadScript() {
@@ -1141,7 +1172,12 @@ class EditorActivity : AppCompatActivity() {
             .setTitle("未保存的修改")
             .setMessage("是否保存当前脚本？")
             .setPositiveButton("保存并退出") { _, _ ->
-                if (saveScript()) finish()
+                lifecycleScope.launch {
+                    val content = binding.scriptEditor.text.toString()
+                    if (saveScript(content) && binding.scriptEditor.text.toString() == content) {
+                        finish()
+                    }
+                }
             }
             .setNegativeButton("放弃修改") { _, _ -> finish() }
             .setNeutralButton("取消", null)

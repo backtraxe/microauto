@@ -759,3 +759,155 @@ a+b          -> true      (ab)+        -> true
 | 修复后完整第 B 轮 | — | 74/74 | `run-emulator-tests.sh`，未见 flaky |
 | SEC-010 dry-run | — | — | 无 keystore exit 1；debug keystore exit 0；assembleDebug exit 0 |
 | 最终 lint/assemble | — | — | 0 errors / 1 warning；`MicroAuto-0.9.0.apk` |
+
+---
+
+## 11. 第四批验收（SEC-007 / SEC-008）
+
+- 测试日期：2026-10-21
+- 代码基线：v0.10.0 + 工作区未提交改动
+- 范围：SEC-008（ScriptService token/session 生命周期）、SEC-007（编辑器保存异步化，部分）
+- 测试角色：独立 QA；只读审查生产代码，仅新增/加强测试；未修改生产代码，未 commit / tag / push
+
+### 11.1 环境与命令
+
+环境同前：macOS（Apple Silicon）、JDK 17、Gradle 8.11.1 / AGP 8.10.1 / Kotlin 2.1.20、Android SDK platform 36 / build-tools 36.0.0、AVD `microauto_api35`（API 35，arm64-v8a）。
+
+```bash
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+./scripts/run-emulator-tests.sh   # 完整跑两轮
+```
+
+### 11.2 结果汇总
+
+| 套件 | 数量 | 失败 | 错误 | 跳过 | 结论 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| JVM 单元测试 | 181 | 0 | 0 | 0 | 通过 |
+| 仪器化测试（API 35） | 84 | 0 | 0 | 0 | 连续两轮 84/84 通过 |
+| Android Lint | — | — | — | — | 0 errors，1 warning（既有 `core-ktx` 提示） |
+| Debug 构建 | — | — | — | — | 成功，`app/build/outputs/apk/debug/MicroAuto-0.10.0.apk` |
+| 完整两轮 logcat | — | — | — | — | `TransactionTooLargeException` 0、`RootViewWithoutFocusException` 0、`WindowLeaked` 0 |
+
+- JVM：开发者自测 176；本轮新增 `RunTokenRegistryTest` 与保存流程用例后最终 **181/181**；仪器化：开发者自测 81，本轮新增 3 个保存失败流程用例后 **84/84**（连续两轮）。
+- 新增用例：`scheduleSheetDoesNotOpenWhenSaveFails`、`publishDoesNotCreateVersionWhenSaveFails`、`exitConfirmationKeepsEditorWhenSaveFails`，以及 `RunTokenRegistryTest` 的 `beginAfterClearStartsFreshOwnership`、`tokenCarriesItsStartId`、`clearOnEmptyRegistryReturnsNull`。
+- 仪器化两轮均无 flaky；焦点/窗口/事务异常均为 0。
+
+### 11.3 SEC-008（P2）ScriptService token/session 生命周期
+
+**实现审查结论：旧运行收尾隔离、wake lock、主线程收尾已实现；STOP 请求仍缺少运行 token，存在一个中危竞态。**
+
+- 每次 `startRun()` 创建 `RunSession(owner=tokens.begin(startId), ...)`，旧运行的 `finishRun(owner)` 先比较 `currentRun` 与 token；不匹配直接返回，不会释放新锁、不会 `RunState.finish()`、不会 `stopSelf`（`ScriptService.kt:86-144`）。
+- wake lock 改为 session 字段，`releaseWakeLock(session)` 只释放本次运行；`RunState` 只在 `startRun`/`finishRun`/`stopRun`/`onDestroy` 的主线程路径更新；`ScriptRunner` 已移除 `RunState` 写入（`ScriptRunner.kt` diff）。
+- `stopSelf(latestStartId)` 用于收尾；`onDestroy` 取消当前 job、释放当前锁、`RunState.finish()`、`tokens.clear()`。
+- `RunTokenRegistryTest` 6/6（原 3 + 本轮 3）：旧 token 不能 finish 新 token、`clear` 后旧 token 失效、token 携带 startId、空 registry clear 返回 null。
+- **中危残留：ACTION_STOP 没有携带 run token，`stopRun(startId)` 在存在 `currentRun` 时完全忽略 startId。** 一个针对旧运行的延迟/过期 stop 请求会取消**新运行**：
+  1. 运行 A 活跃；用户/通知发出 ACTION_STOP（`ScriptService.stop()` 或通知的 stop PendingIntent，均无 token，`ScriptService.kt:46-49,178-183`）。
+  2. 该 stop 尚未被主线程处理时，A 结束，B（手动或定时）启动。
+  3. stop 到达：`stopRun(startId)` 看到 currentRun=B，直接 `stoppedByUser=true`、`job.cancel()`、`finishRun(B)`，B 被取消且不发送结果通知（`ScriptService.kt:146-156`）。
+  - 现有 `startId` 无法解决：STOP intent 的 startId 是在发送时新分配的，不是 A 的 startId；必须把 `RunSession.owner.id` 放进 STOP intent（通知和 UI `stop` 都要带），在 `stopRun` 中比较后再执行。
+  - 该竞态未用 instrumentation 复现（当前没有可注入 fake runner/加速入口，真实运行依赖无障碍）；属于代码路径审查结论，建议补一个“旧 stop token 不得停止新 session”的单元/服务测试。
+- **低风险观察**：`startRun` 在 `currentRun != null` 时只记录“已有脚本在运行”并返回，不 `stopSelf(startId)`；若该请求来自 `startForegroundService`，startId 会留在服务记录中（当前服务已在前台，通常不致命）；建议对重复请求也显式处理 startId。
+- **低风险观察**：`onDestroy` 只在 `currentRun != null` 时 `RunState.finish()`；若未来出现 currentRun 为空但 RunState 仍为 running 的不变量破坏，会留下陈旧状态；建议 onDestroy 无条件 `RunState.finish()`。
+- **测试缺口**：Rapid start/stop/start、定时与手动同时触发未做设备级压测；`RunTokenRegistryTest` 只覆盖 token 语义，不覆盖 `stopRun` 的 stop-intent 归属。
+
+### 11.4 SEC-007（P2，部分）编辑器保存异步化
+
+**实现审查结论：`saveScript()` 已改为 suspend + `Dispatchers.IO` + `Mutex`，调用点覆盖工具栏/运行/看界面/定时/发布/版本/退出；保存失败保持 dirty；仍有主线程 IO 与少量时序细节。**
+
+- `saveScript(content)` 在 `saveMutex.withLock` 内先做 `ScriptLimits` 校验，再 `withContext(Dispatchers.IO) { repository.save(...) }`；只有成功才更新 `lastSavedContent`/`lastSavedAt`/副标题，失败显示 Snackbar 并保持 dirty（`EditorActivity.kt:843-873`）。
+- 调用点：
+  - 工具栏保存：`lifecycleScope.launch { saveScript() }`（`:177`）；
+  - 运行：先 `saveScript(content)`，失败不进入无障碍检查/运行（`:722-735`）；新增 `runDoesNotStartWhenSaveFails` 通过；
+  - 看界面：先保存，失败不启动 dump（`:736-765`）；
+  - 定时：先保存，失败不打开 sheet（`:766-768`；新增 `scheduleSheetDoesNotOpenWhenSaveFails`）；
+  - 发布：先保存，再在 IO 执行 `publishVersion`（`:938-958`；新增 `publishDoesNotCreateVersionWhenSaveFails`）；
+  - 版本：先保存，再启动 `VersionsActivity`（`:961-968`）；
+  - 退出确认：保存成功且内容未在保存期间变化才 `finish()`（`:1168-1178`；新增 `exitConfirmationKeepsEditorWhenSaveFails`）。
+- 重复保存/销毁：`Mutex` 串行化同一 Activity 的保存；`lifecycleScope` 在销毁时取消未完成协程；IO 写完后才回到主线程更新状态。现有 `saveMenuPersistsContent`、`subtitleAndSaveMenuFollowDirtyState`、`publishVersion...` 均改为等待条件，两轮通过。
+- **残留（低）主线程 IO**：`EditorActivity.onCreate` 仍主线程 `repository.find/read`（`:147,153`），`onRestoreInstanceState` 读仓库（`:282`），`reloadScript`（`:972`），重命名 `repository.rename`（`:918`），定时 `SchedulePrefs` 读取（`:1184,1196`）。`saveScript` 本身已异步，但这些路径未全部迁移，SEC-007 只是部分完成。
+- **残留（低）运行快照**：`btnRun` 在启动协程时捕获 `content`，保存 IO 完成后运行该快照；若用户在保存期间继续编辑，会运行旧内容而编辑器显示新内容（新内容保持 dirty）。建议保存完成后比较编辑器文本或暂时禁用编辑/运行按钮。`btnDump` 现在也会先保存未保存内容，改变了原有“看界面不保存”的行为（低风险行为变化）。
+- **残留（低）保存中状态**：保存菜单在异步保存期间仍为启用态，多次点击会排队（`Mutex` 保证不并发写，不会损坏数据），但没有“保存中…”反馈；需求只要求成功/失败状态，属 UX 余项。
+- **说明**：`saveScript` 的取消/销毁路径不会更新 `lastSavedContent`；若 IO 已写完但 Activity 已销毁，下次打开从仓库读取，数据一致。
+
+### 11.5 新增 / 加强的测试
+
+| 文件 | 数量 | 内容 |
+| --- | ---: | --- |
+| `app/src/test/java/com/microauto/script/RunTokenRegistryTest.kt` | +4（共 7） | clear 后旧 token 失效、token 携带 startId、空 registry clear 返回 null、`isCurrentId` 拒绝 null/旧 id |
+| `app/src/androidTest/java/com/microauto/ui/EditorActivityTest.kt` | +3 | 定时/发布/退出在保存失败时不继续，且编辑器保持打开 |
+| 既有测试 | — | `runDoesNotStartWhenSaveFails`、`saveMenuPersistsContent`、`publishVersion...`、`subtitle...` 继续通过 |
+
+### 11.6 未覆盖 / 需人工验收的风险
+
+- **SEC-008 服务级竞态**：未在设备上构造快速 start/stop/start 或定时+手动同时触发；没有可注入 fake runner/加速入口，当前只有 `RunTokenRegistry` 单测与代码路径审查。STOP 归属缺失（11.3）是主要残留。
+- **真实运行链路**：需要开启无障碍才能跑完整 `ScriptService` 生命周期；本轮 UI/服务用例未覆盖真实成功/失败/超时/停止/onDestroy 的 token 收尾。
+- **主线程 IO**：`onCreate/reloadScript/rename/SchedulePrefs` 仍在主线程；128 KB 限制降低风险，但慢磁盘/低端机仍可能卡顿，SEC-007 未完全关闭。
+- **保存时序**：运行期间用户继续编辑的运行快照、`btnDump` 的保存行为变化、保存中菜单状态未做用户级验收。
+- **其他**：真实定时闹钟与手动运行重叠、进程被杀后的服务恢复、TalkBack/大字号未验证。
+
+### 11.7 结论与上线建议
+
+- **SEC-007 的保存异步化核心承诺通过**：保存失败不启动运行、不发布、不打开定时/版本、不退出；只有成功才更新保存状态；测试与两轮仪器化均通过。
+- **SEC-008 的 token/session 主体已实现**：旧 finish 不会清空新状态/释放新锁，wake lock 按 session 隔离，主线程收尾，`RunTokenRegistry` 有回归测试。
+- **仍有一个中危竞态未闭合**：ACTION_STOP 缺少 run token，`stopRun` 忽略 startId，延迟/过期 stop 可取消新运行（11.3）。这不是崩溃，但违反 SEC-008 的“start/stop/start 不互相影响”目标，建议修复后再关闭该安全项；其余为低风险主线程 IO/UX 残留。
+- **是否仍有阻塞问题**：**无崩溃级阻塞**；按 SEC-008 的验收标准，**stale STOP 竞态属于中危阻塞项**（可复现的代码路径已给出），建议修复并补服务级测试后再上线。
+
+### 11.8 修复复核（第五轮，2026-10-21）
+
+复核范围：stale ACTION_STOP/token、startId/onDestroy、保存后运行快照。只修改测试代码；新增 `RunTokenRegistry.isCurrentId` 断言；未改生产代码，未 commit/tag/push。
+
+#### 11.8.1 结果
+
+| 项 | 结果 |
+| --- | --- |
+| JVM 单元测试 | **181/181 通过** |
+| 仪器化测试（API 35） | **84/84 通过，连续两轮** |
+| Lint / assembleDebug | 0 errors / 1 warning；`MicroAuto-0.10.0.apk` |
+| 完整两轮 logcat | `TransactionTooLargeException` 0、`RootViewWithoutFocusException` 0、`WindowLeaked` 0 |
+
+#### 11.8.2 ACTION_STOP / token 调用点审计
+
+| 调用点 | 是否携带当前 token | 结论 |
+| --- | --- | --- |
+| 编辑页停止按钮（`EditorActivity.kt:738-740`） | `RunState.activeToken.value` | 有 token 才发送；生产环境 service 启动时必定写入 |
+| 前台通知 stop PendingIntent（`ScriptService.kt:190-196`） | `EXTRA_RUN_TOKEN`（当前 session owner.id） | 正确 |
+| `ScriptService.stop(context)` 默认参数 | `NO_TOKEN`（Long.MIN_VALUE） | 旧/无 token 调用在存在 currentRun 时被忽略 |
+| 测试/其他生产代码 | 未发现其他调用点（全仓 grep） | 无遗漏 |
+
+- `stopRun(startId, token)`：session 为空时 `stopSelf(startId)`；session 存在时要求 `tokens.isCurrentId(token)` 且 `session.owner.id == token`，旧 token/NO_TOKEN 直接返回，不 cancel 新运行、不清理新 `RunState`/wake lock（`ScriptService.kt:152-162`）。
+- `RunState.activeToken`：`start(scriptId, token)` 写入；`finish()`/`setRunning(false)` 清空；`ScriptService` 的 start/finish/stop/onDestroy 均覆盖（`RunState.kt:13-34`；`RunStateTest` 4 项含 token 清理）。
+- `onDestroy`：无条件 `currentRun` 取消、`releaseWakeLock`、`RunState.finish()`、`stopForeground`、`tokens.clear()`（`ScriptService.kt:228-242`），不再依赖 session 非空。
+- 被拒绝的新 startId：`startRun` 在 `currentRun != null` 时不再同步 `stopSelf(startId)`（避免误停当前运行），改为 `mainHandler.post { if (currentRun == null) stopSelf(startId) }`；当前 session 正常结束时 `finishRun` 使用 `stopSelf(latestStartId)` 覆盖该 startId（`ScriptService.kt:96-106,173-183`）。
+- **低风险残留**：`stopSelf(latestStartId)` 仍存在与“已入队但尚未处理的新 start”之间的理论时序窗口（极窄，未在设备上复现）；建议后续用服务级压测/明确 startId 状态机覆盖。
+- **低风险观察**：若 `RunState.activeToken` 因不变量破坏为 null，编辑页停止按钮会不发送任何请求（按钮无反馈）；生产路径中 service 启动即写入 token，因此不是当前可复现问题。
+
+#### 11.8.3 保存后运行快照
+
+- `btnRun` 在 `saveScript(content)` 完成后重新读取 `binding.scriptEditor.text` 并传给 `runCurrentScript`（`EditorActivity.kt:722-735`），不再运行保存前的旧快照；若编辑发生在保存期间，运行的是当前编辑器文本。
+- 由于 `ScriptRepository` 未提供测试注入点，未构造确定性的“保存期间阻塞”用例；该行为为代码审查结论，现有 `saveMenuPersistsContent`/保存失败/超时用例两轮通过。
+- **低风险语义**：保存期间的新编辑会参与运行，但本次保存只持久化了旧快照，运行后编辑器仍为 dirty（新的编辑未自动保存）。这符合“运行当前内容”的目标，但用户可能以为运行前已全部保存；可在 UI 文案或后续实现中明确。
+
+#### 11.8.4 其他残留
+
+- **SEC-007（低）**：`EditorActivity.onCreate`/`onRestoreInstanceState`/`reloadScript`/`repository.rename`/`SchedulePrefs` 读取仍在主线程；`saveScript`、`publishVersion` 已 IO 化（见 11.4）。
+- **低**：保存菜单在异步保存期间仍启用，多次点击经 `Mutex` 排队，不会损坏数据，但没有“保存中”反馈。
+- **低**：`btnDump` 现在会先保存未保存内容（行为变化）；`runCurrentScript` 使用保存后重读的文本，但若编辑发生在保存完成后、运行启动前，仍会运行该时刻文本（无锁快照）。
+- **测试缺口**：快速 start/stop/start、定时+手动并发仍无设备级自动化；目前由 `RunTokenRegistryTest`（7 项，含 `isCurrentId` 对 null/旧 token 的断言）与代码路径审查覆盖。
+
+#### 11.8.5 结论
+
+- Stale STOP 修复通过：所有生产 stop 调用点均携带 token，旧/空 token 在新 session 存在时被忽略；`RunState.activeToken` 在 start/finish/stop/onDestroy 清理；`onDestroy` 无条件清状态；被拒绝 startId 有 `finishRun`/posted safety net 收尾。
+- 保存后运行快照已改为重读编辑器文本，不再运行旧快照。
+- **无高危/崩溃阻塞**；剩余为低风险主线程 IO、保存/运行语义与未自动化的服务级时序压测，建议后续补服务测试。
+- **是否仍有阻塞问题：否**（按当前验收标准）；stale STOP 已闭合，未发现新的阻塞项。
+
+### 附：第四轮测试轮次记录
+
+| 阶段 | JVM | 仪器化 | 说明 |
+| --- | --- | --- | --- |
+| 基线（开发者自测） | 176 | 81 | — |
+| 本轮新增测试后 | 179/179 | 84/84 | 新增 RunToken 3 + Editor 保存失败流程 3 |
+| 完整 A 轮 | — | 84/84 | `run-emulator-tests.sh` |
+| 完整 B 轮 | — | 84/84 | `run-emulator-tests.sh`，未见 flaky |
+| 最终 lint/assemble | — | — | 0 errors / 1 warning；`MicroAuto-0.10.0.apk` |
