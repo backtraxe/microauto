@@ -30,16 +30,19 @@
     <string name="tab_tutorial">教程</string>
 
     <string name="editor_hint">在这里编写 JavaScript</string>
+    <string name="editor_tab_code">编辑</string>
+    <string name="editor_tab_log">日志</string>
     <string name="schedule_title">每天定时</string>
     <string name="schedule_not_enabled">未启用</string>
     <string name="run_log_title">运行日志（最近一次）</string>
+    <string name="run_log_empty">运行脚本后，日志会显示在这里</string>
 
     <string name="search_scripts_hint">搜索脚本</string>
     <string name="empty_no_scripts">还没有脚本</string>
     <string name="empty_no_scripts_hint">新建一个脚本，或从文件导入 .js / .txt</string>
 
     <string name="empty_no_versions">还没有发布版本</string>
-    <string name="empty_no_versions_hint">在编辑页菜单里点「发布版本」，给当前内容打一个快照。</string>
+    <string name="empty_no_versions_hint">在编辑页菜单里点「发布版本」，为当前内容创建快照。</string>
 
     <string name="rename_script_hint">脚本名称</string>
     <string name="version_note_hint">版本备注（可选）</string>

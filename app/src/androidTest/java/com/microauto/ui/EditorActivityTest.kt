@@ -57,6 +57,19 @@ class EditorActivityTest {
     }
 
     @Test
+    fun tabsSwitchBetweenEditorAndLog() {
+        launch().use {
+            onView(withId(R.id.editorTabs)).check(matches(isDisplayed()))
+            onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
+            onView(withText(R.string.editor_tab_log)).perform(click())
+            onView(withId(R.id.logPage)).check(matches(isDisplayed()))
+            onView(withId(R.id.logScroll)).check(matches(isDisplayed()))
+            onView(withText(R.string.editor_tab_code)).perform(click())
+            onView(withId(R.id.scriptEditor)).check(matches(isDisplayed()))
+        }
+    }
+
+    @Test
     fun lineNumbersFollowContent() {
         launch().use {
             onView(withId(R.id.scriptEditor)).perform(replaceText("a\nb\nc"))

@@ -13,6 +13,7 @@ import android.os.PowerManager
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
@@ -22,6 +23,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
@@ -95,6 +97,8 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         EdgeToEdge.apply(this, binding.root)
+        // BottomNavigationView 会自行叠加系统栏与 IME 内边距，这里已由 EdgeToEdge 统一处理。
+        ViewCompat.setOnApplyWindowInsetsListener(binding.bottomNav) { _, insets -> insets }
 
         repository = ScriptRepository(this)
         adapter = LibraryAdapter(
@@ -245,8 +249,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showScriptsTab() {
-        binding.scriptsPage.isVisible = true
-        binding.tutorialPage.isVisible = false
+        showPage(binding.scriptsPage, true)
+        showPage(binding.tutorialPage, false)
         binding.toolbar.menu.clear()
         binding.toolbar.inflateMenu(R.menu.menu_main)
         updateToolbar()
@@ -254,12 +258,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTutorialTab() {
-        binding.scriptsPage.isVisible = false
-        binding.tutorialPage.isVisible = true
+        showPage(binding.scriptsPage, false)
+        showPage(binding.tutorialPage, true)
         binding.toolbar.menu.clear()
         binding.toolbar.title = "使用教程"
         binding.toolbar.navigationIcon = null
         binding.toolbar.setNavigationOnClickListener(null)
+    }
+
+    private fun showPage(page: View, visible: Boolean) {
+        page.animate().cancel()
+        if (visible) {
+            page.alpha = 0f
+            page.isVisible = true
+            page.animate()
+                .alpha(1f)
+                .setDuration(160)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        } else {
+            page.isVisible = false
+            page.alpha = 1f
+        }
     }
 
     private fun refresh() {

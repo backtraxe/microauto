@@ -18,6 +18,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
@@ -27,6 +28,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -34,6 +37,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.tabs.TabLayout
 import com.microauto.R
 import com.microauto.accessibility.AccessibilityUtils
 import com.microauto.core.FindMatch
@@ -56,6 +60,10 @@ class EditorActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_SCRIPT_ID = "script_id"
+
+        private const val TAB_CODE = 0
+        private const val TAB_LOG = 1
+        private const val STATE_TAB = "editor_tab"
 
         private val CLOSING = mapOf(
             "{" to "}",
@@ -113,6 +121,7 @@ class EditorActivity : AppCompatActivity() {
         setContentView(binding.root)
         EdgeToEdge.apply(this, binding.root)
         binding.logScroll.clipToOutline = true
+        setupTabs(savedInstanceState)
 
         binding.toolbar.title = meta.name
         binding.toolbar.setNavigationOnClickListener { requestFinish() }
@@ -169,12 +178,83 @@ class EditorActivity : AppCompatActivity() {
         })
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (::binding.isInitialized) {
+            outState.putInt(STATE_TAB, binding.editorTabs.selectedTabPosition)
+        }
+    }
+
     override fun onDestroy() {
         scheduleDialog?.dismiss()
         findDialog?.dismiss()
         undoManager?.stop()
         highlighter?.release()
         super.onDestroy()
+    }
+
+    private fun setupTabs(savedInstanceState: Bundle?) {
+        binding.editorTabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                val showLog = tab.position == TAB_LOG
+                showPage(binding.editorPage, !showLog)
+                showPage(binding.logPage, showLog)
+                if (showLog) {
+                    currentFocus?.clearFocus()
+                    getSystemService(InputMethodManager::class.java)
+                        ?.hideSoftInputFromWindow(binding.root.windowToken, 0)
+                    binding.logScroll.post {
+                        binding.logScroll.fullScroll(View.FOCUS_DOWN)
+                    }
+                }
+            }
+
+            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
+
+            override fun onTabReselected(tab: TabLayout.Tab) = Unit
+        })
+        val index = savedInstanceState?.getInt(STATE_TAB, TAB_CODE) ?: TAB_CODE
+        binding.editorTabs.getTabAt(index)?.select()
+    }
+
+    private fun showPage(page: View, visible: Boolean) {
+        page.animate().cancel()
+        if (visible) {
+            page.alpha = 0f
+            page.isVisible = true
+            page.animate()
+                .alpha(1f)
+                .setDuration(160)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        } else {
+            page.isVisible = false
+            page.alpha = 1f
+        }
+    }
+
+    private fun showRunningIndicator(running: Boolean) {
+        binding.runProgress.animate().cancel()
+        if (running) {
+            binding.runProgress.alpha = 0f
+            binding.runProgress.isVisible = true
+            binding.runProgress.animate()
+                .alpha(1f)
+                .setDuration(160)
+                .start()
+        } else {
+            binding.runProgress.animate()
+                .alpha(0f)
+                .setDuration(160)
+                .withEndAction {
+                    if (!RunState.running.value) binding.runProgress.isVisible = false
+                }
+                .start()
+        }
+    }
+
+    private fun showLogTab() {
+        binding.editorTabs.getTabAt(TAB_LOG)?.select()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -268,7 +348,8 @@ class EditorActivity : AppCompatActivity() {
             text = label
             contentDescription = description
             gravity = Gravity.CENTER
-            typeface = Typeface.MONOSPACE
+            typeface = ResourcesCompat.getFont(this@EditorActivity, R.font.jetbrains_mono_regular)
+                ?: Typeface.MONOSPACE
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             setTextColor(
                 MaterialColors.getColor(
@@ -358,6 +439,7 @@ class EditorActivity : AppCompatActivity() {
                 scriptName,
                 binding.scriptEditor.text.toString()
             )
+            showLogTab()
         }
         binding.btnStop.setOnClickListener {
             ScriptService.stop(this)
@@ -374,6 +456,7 @@ class EditorActivity : AppCompatActivity() {
                 "看界面",
                 "toast(\"5 秒内切到目标界面\"); sleep(5000); dump();"
             )
+            showLogTab()
         }
         binding.btnSchedule.setOnClickListener {
             showScheduleSheet()
@@ -386,6 +469,7 @@ class EditorActivity : AppCompatActivity() {
                 launch {
                     RunLog.text.collect { text ->
                         binding.logText.text = text
+                        binding.logEmpty.isVisible = text.isBlank()
                         binding.logScroll.post {
                             binding.logScroll.fullScroll(View.FOCUS_DOWN)
                         }
@@ -396,6 +480,7 @@ class EditorActivity : AppCompatActivity() {
                         binding.btnRun.isEnabled = !running
                         binding.btnStop.isEnabled = running
                         binding.btnDump.isEnabled = !running
+                        showRunningIndicator(running)
                     }
                 }
             }

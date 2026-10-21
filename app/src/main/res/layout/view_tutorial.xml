@@ -11,6 +11,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:lineSpacingExtra="4dp"
         android:text="@string/tutorial_intro"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
@@ -42,6 +43,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:lineSpacingExtra="4dp"
         android:text="@string/tutorial_first_script_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />
@@ -51,13 +53,14 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:background="@drawable/bg_log"
-        android:fontFamily="monospace"
+        android:fontFamily="@font/jetbrains_mono_regular"
+        android:fontFeatureSettings="'liga' 0, 'calt' 0"
         android:lineSpacingExtra="2dp"
         android:padding="12dp"
         android:text="@string/tutorial_code_snippet"
         android:textColor="?attr/colorOnSurface"
         android:textIsSelectable="true"
-        android:textSize="12sp" />
+        android:textSize="13sp" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -118,6 +121,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:lineSpacingExtra="4dp"
         android:text="@string/tutorial_search_body"
         android:textAppearance="?attr/textAppearanceBodyMedium"
         android:textColor="?attr/colorOnSurfaceVariant" />

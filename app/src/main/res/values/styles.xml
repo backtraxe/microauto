@@ -11,6 +11,6 @@
     </style>
 
     <style name="Widget.MicroAuto.ListCard" parent="Widget.MicroAuto.Card">
-        <item name="cardCornerRadius">12dp</item>
+        <item name="cardCornerRadius">16dp</item>
     </style>
 </resources>

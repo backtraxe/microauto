@@ -10,23 +10,23 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingStart="20dp"
+        android:paddingStart="24dp"
         android:paddingTop="16dp"
-        android:paddingEnd="20dp"
+        android:paddingEnd="24dp"
         android:paddingBottom="24dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/action_find_replace"
-            android:textAppearance="?attr/textAppearanceTitleMedium" />
+            android:textAppearance="?attr/textAppearanceTitleLarge" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/findInputLayout"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="16dp"
             android:hint="@string/find_hint">
 
             <com.google.android.material.textfield.TextInputEditText
