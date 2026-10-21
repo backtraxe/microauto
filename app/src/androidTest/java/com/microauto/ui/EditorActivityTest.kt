@@ -181,6 +181,7 @@ class EditorActivityTest {
                 assertEquals("UI 测试脚本", toolbar.title.toString())
             }
             assertEquals("UI 测试脚本", ScriptRepository(context).find(scriptId)?.name)
+            pressBack()
         }
     }
 

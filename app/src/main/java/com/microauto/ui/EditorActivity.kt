@@ -26,6 +26,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
@@ -98,6 +99,7 @@ class EditorActivity : AppCompatActivity() {
     private var undoManager: EditorUndoManager? = null
     private var scheduleDialog: BottomSheetDialog? = null
     private var findDialog: BottomSheetDialog? = null
+    private var renameDialog: AlertDialog? = null
     private var findSheet: SheetFindReplaceBinding? = null
     private var findMatches: List<FindMatch> = emptyList()
     private var findIndex = -1
@@ -214,6 +216,7 @@ class EditorActivity : AppCompatActivity() {
     override fun onDestroy() {
         scheduleDialog?.dismiss()
         findDialog?.dismiss()
+        renameDialog?.dismiss()
         undoManager?.stop()
         highlighter?.release()
         super.onDestroy()
@@ -703,6 +706,8 @@ class EditorActivity : AppCompatActivity() {
             .setPositiveButton("确定", null)
             .setNegativeButton("取消", null)
             .create()
+        renameDialog = dialog
+        dialog.setOnDismissListener { renameDialog = null }
         dialog.setOnShowListener {
             dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
                 .setOnClickListener {
